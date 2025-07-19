@@ -1,0 +1,8 @@
+# 设置代理，只对当前终端窗口有效
+export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890
+
+# 现在可以正常使用 gemini cli 了
+gemini prompt "给我写一首关于夏夜的诗"
+
+# 如果想在当前窗口关闭代理
+unset https_proxy http_proxy all_proxy

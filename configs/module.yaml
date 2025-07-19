@@ -1,0 +1,28 @@
+app:
+  name: "EiTec VPN Module"
+  port: 7070
+  secret: "eitec-vpn-module-secret-key-2024"
+
+module:
+  id: 0
+  name: "默认模块"
+  location: "未设置"
+  private_key: ""
+  server_endpoint: ""
+  api_key: ""
+
+server:
+  url: ""
+  heartbeat_interval: 30
+  report_interval: 60
+  sync_interval: 300
+
+wireguard:
+  interface: "wg0"
+
+logging:
+  level: "info"  # debug, info, warn, error
+  file: "logs/module.log"
+  max_size: 50   # MB
+  max_backups: 3
+  max_age: 7     # days 

@@ -1,0 +1,1329 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GoORMHelperCache">
+    <option name="schemaMapping">
+      <map>
+        <entry key="ActivityInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="AuthConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/user_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="AuthHandler">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/handlers/auth_handler.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/auth_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="AuthServiceImpl">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/user_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="CORSConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/middleware/security.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ChangePasswordRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/handlers/auth_handler.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/auth_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ConfigCache">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/config_cache.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ConfigHandler">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/config_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ConfigService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/config_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ConfigSyncTask">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_manager.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ConnectionHistory">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/connection_history.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="CreateModuleRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/module_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="CreateUserRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/user_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="DashboardHandler">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/dashboard_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="DashboardService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="DashboardStats">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/dashboard_stats.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="DataCleanupTask">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_manager.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="DiskInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="HealthCheck">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="HeartbeatTask">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_manager.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="IPPool">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/ip_pool.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="JWTClaims">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="JWTService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="LocalLog">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/local_log.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="LocalModule">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/local_module.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="LocalUser">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/local_user.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="LoginRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/handlers/auth_handler.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/auth_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="LoginResponse">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/handlers/auth_handler.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/auth_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="MemoryInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="Module">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/module.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/module_config.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/services/module_service.go" />
+              <option value="file://$PROJECT_DIR$/internal/shared/config/config.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleHandler">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/handlers/module_handler.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/module_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleListInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleLog">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/module_log.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleManager">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_manager.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleRankingInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_service.go" />
+              <option value="file://$PROJECT_DIR$/internal/server/services/module_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ModuleStatsInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="NetworkConfigInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/config_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="NetworkInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="NetworkInterface">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="PageResponse">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/response/response.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="PageRoute">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/routes/routes.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="PeerConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/module_config.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="PeerStatus">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="PerformanceMetric">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/performance_metric.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="RedirectRoute">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/routes/routes.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="RefreshTokenRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/auth_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="Response">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/response/response.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SecurityConfigInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/config_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ServerClient">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/server_client.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ServerConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/config/config.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="ServerConfigInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/config_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="Session">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/session.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SessionInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/session.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SessionManager">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/session.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SetupInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="StatusDataPoint">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="StatusService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemConfig">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/system_config.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemConfigInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/config_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemHealthInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/system_info.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemResourceInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemStatsInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="SystemStatus">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TokenPair">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/jwt.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TrafficDataPoint">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TrafficHistory">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/traffic_history.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TrafficReportTask">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/module_manager.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TrafficStats">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="TrafficStatsInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UpdateModuleRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/module_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UpdateModuleStatusRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/module_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UpdateUserRequest">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/user_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="User">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/user.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UserHandler">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/handlers/user_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UserInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/handlers/auth_handler.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="UserService">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/shared/auth/user_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="WireGuardConfigInfo">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/services/config_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="WireGuardKey">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/models/wireguard_key.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="WireGuardManager">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/wireguard_manager.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="WireGuardPeer">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/models/wireguard_peer.go" />
+              <option value="file://$PROJECT_DIR$/internal/shared/wireguard/wireguard.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="WireGuardStatus">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/module/services/status_service.go" />
+            </set>
+          </value>
+        </entry>
+        <entry key="client">
+          <value>
+            <set>
+              <option value="file://$PROJECT_DIR$/internal/server/middleware/security.go" />
+            </set>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="scannedPathMapping">
+      <map>
+        <entry key="file://$PROJECT_DIR$/cmd/module/main.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617462694" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/cmd/server/main.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751622094134" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/database/database.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751623204101" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/handlers/auth_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751623292221" />
+              <option name="schema">
+                <list>
+                  <option value="AuthHandler" />
+                  <option value="LoginRequest" />
+                  <option value="LoginResponse" />
+                  <option value="UserInfo" />
+                  <option value="ChangePasswordRequest" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/handlers/module_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751619833826" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleHandler" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/middleware/auth.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751619866434" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/config_cache.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617895417" />
+              <option name="schema">
+                <list>
+                  <option value="ConfigCache" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/connection_history.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617948105" />
+              <option name="schema">
+                <list>
+                  <option value="ConnectionHistory" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/local_log.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617859245" />
+              <option name="schema">
+                <list>
+                  <option value="LocalLog" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/local_module.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617708791" />
+              <option name="schema">
+                <list>
+                  <option value="LocalModule" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/local_user.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751623141183" />
+              <option name="schema">
+                <list>
+                  <option value="LocalUser" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/migrate.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751623152207" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/performance_metric.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617971037" />
+              <option name="schema">
+                <list>
+                  <option value="PerformanceMetric" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/system_info.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617935759" />
+              <option name="schema">
+                <list>
+                  <option value="SystemInfo" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/traffic_history.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617872229" />
+              <option name="schema">
+                <list>
+                  <option value="TrafficHistory" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/models/wireguard_peer.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617919276" />
+              <option name="schema">
+                <list>
+                  <option value="WireGuardPeer" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/routes/routes.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751613733267" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/services/module_manager.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751617523553" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleManager" />
+                  <option value="HeartbeatTask" />
+                  <option value="TrafficReportTask" />
+                  <option value="ConfigSyncTask" />
+                  <option value="DataCleanupTask" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/services/module_service.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751524510535" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleService" />
+                  <option value="ModuleInfo" />
+                  <option value="SetupInfo" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/services/server_client.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751616707827" />
+              <option name="schema">
+                <list>
+                  <option value="ServerClient" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/services/status_service.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751524512622" />
+              <option name="schema">
+                <list>
+                  <option value="StatusService" />
+                  <option value="WireGuardStatus" />
+                  <option value="PeerStatus" />
+                  <option value="TrafficStats" />
+                  <option value="SystemStatus" />
+                  <option value="MemoryInfo" />
+                  <option value="DiskInfo" />
+                  <option value="NetworkInfo" />
+                  <option value="NetworkInterface" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/module/services/wireguard_manager.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751616429924" />
+              <option name="schema">
+                <list>
+                  <option value="WireGuardManager" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/database/database.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751622835019" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/handlers/auth_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751620070772" />
+              <option name="schema">
+                <list>
+                  <option value="AuthHandler" />
+                  <option value="LoginRequest" />
+                  <option value="LoginResponse" />
+                  <option value="RefreshTokenRequest" />
+                  <option value="ChangePasswordRequest" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/handlers/config_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621777539" />
+              <option name="schema">
+                <list>
+                  <option value="ConfigHandler" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/handlers/dashboard_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751523823098" />
+              <option name="schema">
+                <list>
+                  <option value="DashboardHandler" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/handlers/module_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621785030" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleHandler" />
+                  <option value="CreateModuleRequest" />
+                  <option value="UpdateModuleRequest" />
+                  <option value="UpdateModuleStatusRequest" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/handlers/user_handler.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621791230" />
+              <option name="schema">
+                <list>
+                  <option value="UserHandler" />
+                  <option value="CreateUserRequest" />
+                  <option value="UpdateUserRequest" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/middleware/auth.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621798746" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/middleware/security.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751620294438" />
+              <option name="schema">
+                <list>
+                  <option value="CORSConfig" />
+                  <option value="client" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/dashboard_stats.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621456886" />
+              <option name="schema">
+                <list>
+                  <option value="DashboardStats" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/ip_pool.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621415051" />
+              <option name="schema">
+                <list>
+                  <option value="IPPool" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/migrate.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621469143" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/module.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621317823" />
+              <option name="schema">
+                <list>
+                  <option value="Module" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/module_config.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621446552" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleConfig" />
+                  <option value="PeerConfig" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/module_log.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621361383" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleLog" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/system_config.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621397104" />
+              <option name="schema">
+                <list>
+                  <option value="SystemConfig" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/user.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621385692" />
+              <option name="schema">
+                <list>
+                  <option value="User" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/models/wireguard_key.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621428662" />
+              <option name="schema">
+                <list>
+                  <option value="WireGuardKey" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/routes/routes.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751615119926" />
+              <option name="schema">
+                <list>
+                  <option value="PageRoute" />
+                  <option value="RedirectRoute" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/services/config_service.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751622065009" />
+              <option name="schema">
+                <list>
+                  <option value="ConfigService" />
+                  <option value="SystemConfigInfo" />
+                  <option value="ServerConfigInfo" />
+                  <option value="WireGuardConfigInfo" />
+                  <option value="SecurityConfigInfo" />
+                  <option value="NetworkConfigInfo" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/services/dashboard_service.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751622074957" />
+              <option name="schema">
+                <list>
+                  <option value="DashboardService" />
+                  <option value="DashboardStats" />
+                  <option value="ModuleStatsInfo" />
+                  <option value="TrafficStatsInfo" />
+                  <option value="SystemStatsInfo" />
+                  <option value="ActivityInfo" />
+                  <option value="TrafficDataPoint" />
+                  <option value="StatusDataPoint" />
+                  <option value="ModuleListInfo" />
+                  <option value="ModuleRankingInfo" />
+                  <option value="SystemHealthInfo" />
+                  <option value="SystemResourceInfo" />
+                  <option value="HealthCheck" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/server/services/module_service.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751622057261" />
+              <option name="schema">
+                <list>
+                  <option value="ModuleConfig" />
+                  <option value="ModuleService" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/auth/jwt.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621717631" />
+              <option name="schema">
+                <list>
+                  <option value="JWTClaims" />
+                  <option value="TokenPair" />
+                  <option value="JWTService" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/auth/session.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621735133" />
+              <option name="schema">
+                <list>
+                  <option value="SessionInfo" />
+                  <option value="Session" />
+                  <option value="SessionManager" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/auth/user_service.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751622050587" />
+              <option name="schema">
+                <list>
+                  <option value="UserService" />
+                  <option value="AuthConfig" />
+                  <option value="AuthServiceImpl" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/config/config.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751526337825" />
+              <option name="schema">
+                <list>
+                  <option value="ServerConfig" />
+                  <option value="ModuleConfig" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/response/response.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751619752130" />
+              <option name="schema">
+                <list>
+                  <option value="Response" />
+                  <option value="PageResponse" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/utils/utils.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751619805376" />
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/internal/shared/wireguard/wireguard.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751621749683" />
+              <option name="schema">
+                <list>
+                  <option value="WireGuardPeer" />
+                </list>
+              </option>
+            </ScannedPath>
+          </value>
+        </entry>
+        <entry key="file://$PROJECT_DIR$/temp_hash.go">
+          <value>
+            <ScannedPath>
+              <option name="lastModified" value="1751531176251" />
+            </ScannedPath>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="tableStructMapping">
+      <map>
+        <entry key="activity_info" value="ActivityInfo" />
+        <entry key="auth_config" value="AuthConfig" />
+        <entry key="auth_handler" value="AuthHandler" />
+        <entry key="auth_service_impl" value="AuthServiceImpl" />
+        <entry key="change_password_request" value="ChangePasswordRequest" />
+        <entry key="client" value="client" />
+        <entry key="config_cache" value="ConfigCache" />
+        <entry key="config_handler" value="ConfigHandler" />
+        <entry key="config_service" value="ConfigService" />
+        <entry key="config_sync_task" value="ConfigSyncTask" />
+        <entry key="connection_history" value="ConnectionHistory" />
+        <entry key="cors_config" value="CORSConfig" />
+        <entry key="create_module_request" value="CreateModuleRequest" />
+        <entry key="create_user_request" value="CreateUserRequest" />
+        <entry key="dashboard_handler" value="DashboardHandler" />
+        <entry key="dashboard_service" value="DashboardService" />
+        <entry key="dashboard_stats" value="DashboardStats" />
+        <entry key="data_cleanup_task" value="DataCleanupTask" />
+        <entry key="disk_info" value="DiskInfo" />
+        <entry key="health_check" value="HealthCheck" />
+        <entry key="heartbeat_task" value="HeartbeatTask" />
+        <entry key="ip_pool" value="IPPool" />
+        <entry key="jwt_claims" value="JWTClaims" />
+        <entry key="jwt_service" value="JWTService" />
+        <entry key="local_log" value="LocalLog" />
+        <entry key="local_module" value="LocalModule" />
+        <entry key="local_user" value="LocalUser" />
+        <entry key="login_request" value="LoginRequest" />
+        <entry key="login_response" value="LoginResponse" />
+        <entry key="memory_info" value="MemoryInfo" />
+        <entry key="module" value="Module" />
+        <entry key="module_config" value="ModuleConfig" />
+        <entry key="module_handler" value="ModuleHandler" />
+        <entry key="module_info" value="ModuleInfo" />
+        <entry key="module_list_info" value="ModuleListInfo" />
+        <entry key="module_log" value="ModuleLog" />
+        <entry key="module_manager" value="ModuleManager" />
+        <entry key="module_ranking_info" value="ModuleRankingInfo" />
+        <entry key="module_service" value="ModuleService" />
+        <entry key="module_stats_info" value="ModuleStatsInfo" />
+        <entry key="network_config_info" value="NetworkConfigInfo" />
+        <entry key="network_info" value="NetworkInfo" />
+        <entry key="network_interface" value="NetworkInterface" />
+        <entry key="page_response" value="PageResponse" />
+        <entry key="page_route" value="PageRoute" />
+        <entry key="peer_config" value="PeerConfig" />
+        <entry key="peer_status" value="PeerStatus" />
+        <entry key="performance_metric" value="PerformanceMetric" />
+        <entry key="redirect_route" value="RedirectRoute" />
+        <entry key="refresh_token_request" value="RefreshTokenRequest" />
+        <entry key="response" value="Response" />
+        <entry key="security_config_info" value="SecurityConfigInfo" />
+        <entry key="server_client" value="ServerClient" />
+        <entry key="server_config" value="ServerConfig" />
+        <entry key="server_config_info" value="ServerConfigInfo" />
+        <entry key="session" value="Session" />
+        <entry key="session_info" value="SessionInfo" />
+        <entry key="session_manager" value="SessionManager" />
+        <entry key="setup_info" value="SetupInfo" />
+        <entry key="status_data_point" value="StatusDataPoint" />
+        <entry key="status_service" value="StatusService" />
+        <entry key="system_config" value="SystemConfig" />
+        <entry key="system_config_info" value="SystemConfigInfo" />
+        <entry key="system_health_info" value="SystemHealthInfo" />
+        <entry key="system_info" value="SystemInfo" />
+        <entry key="system_resource_info" value="SystemResourceInfo" />
+        <entry key="system_stats_info" value="SystemStatsInfo" />
+        <entry key="system_status" value="SystemStatus" />
+        <entry key="token_pair" value="TokenPair" />
+        <entry key="traffic_data_point" value="TrafficDataPoint" />
+        <entry key="traffic_history" value="TrafficHistory" />
+        <entry key="traffic_report_task" value="TrafficReportTask" />
+        <entry key="traffic_stats" value="TrafficStats" />
+        <entry key="traffic_stats_info" value="TrafficStatsInfo" />
+        <entry key="update_module_request" value="UpdateModuleRequest" />
+        <entry key="update_module_status_request" value="UpdateModuleStatusRequest" />
+        <entry key="update_user_request" value="UpdateUserRequest" />
+        <entry key="user" value="User" />
+        <entry key="user_handler" value="UserHandler" />
+        <entry key="user_info" value="UserInfo" />
+        <entry key="user_service" value="UserService" />
+        <entry key="wire_guard_config_info" value="WireGuardConfigInfo" />
+        <entry key="wire_guard_key" value="WireGuardKey" />
+        <entry key="wire_guard_manager" value="WireGuardManager" />
+        <entry key="wire_guard_peer" value="WireGuardPeer" />
+        <entry key="wire_guard_status" value="WireGuardStatus" />
+      </map>
+    </option>
+    <option name="lastTimeChecked" value="1751938135729" />
+  </component>
+</project>
