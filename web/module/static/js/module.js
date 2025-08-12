@@ -1,9 +1,15 @@
 // 全局变量
 let updateInterval;
 let currentView = 'dashboard'; // 'dashboard' 或 'config'
+let performanceMode = false;
+let isLowEndDevice = false;
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 性能检测和优化
+    detectDevicePerformance();
+    optimizeForPerformance();
+    
     updateTime();
     // 先验证token，然后再加载数据
     checkAuthAndLoadData();
@@ -14,9 +20,60 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化配置界面
     initializeConfigForm();
     
-    // 创建背景粒子效果
-    createParticles();
+    // 根据性能决定是否创建粒子效果
+    if (!isLowEndDevice) {
+        createParticles();
+    }
 });
+
+// 检测设备性能
+function detectDevicePerformance() {
+    // 检测低端设备
+    isLowEndDevice = 
+        navigator.hardwareConcurrency <= 2 || // 低核心数
+        navigator.deviceMemory <= 2 || // 低内存
+        /Android.*Version\/4\./.test(navigator.userAgent) || // 旧版Android
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches; // 用户偏好
+    
+    if (isLowEndDevice) {
+        performanceMode = true;
+        console.log('检测到低端设备，启用性能模式');
+    }
+}
+
+// 性能优化
+function optimizeForPerformance() {
+    if (performanceMode) {
+        document.body.classList.add('performance-mode');
+        
+        // 禁用复杂动画
+        const style = document.createElement('style');
+        style.textContent = `
+            * { 
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // 页面可见性API优化
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            // 页面不可见时暂停更新
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        } else {
+                         // 页面可见时恢复更新
+             if (currentView === 'dashboard') {
+                 loadAllData();
+                 const refreshInterval = performanceMode ? 120000 : 60000;
+                 updateInterval = setInterval(loadAllData, refreshInterval);
+             }
+        }
+    });
+}
 
 // 检查认证状态并加载数据
 async function checkAuthAndLoadData() {
@@ -46,8 +103,9 @@ async function checkAuthAndLoadData() {
             // 配置已就绪，显示管理界面
             showDashboardView();
             loadAllData();
-            // 设置定时刷新 - 降低频率减少卡顿
-            updateInterval = setInterval(loadAllData, 60000);
+            // 根据设备性能设置刷新频率
+            const refreshInterval = performanceMode ? 120000 : 60000; // 低端设备2分钟，正常设备1分钟
+            updateInterval = setInterval(loadAllData, refreshInterval);
         } else {
             // Token无效，显示配置界面
             showConfigView();
@@ -795,12 +853,20 @@ function showAlert(type, message) {
     }
 }
 
-// 创建背景粒子效果
+// 创建背景粒子效果（优化版）
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
     if (!particlesContainer) return;
     
-    const particleCount = 30;
+    // 根据设备性能调整粒子数量
+    let particleCount = 15; // 减少默认数量
+    
+    if (navigator.hardwareConcurrency <= 2 || navigator.deviceMemory <= 2) {
+        particleCount = 8; // 低端设备进一步减少
+    }
+    
+    // 使用DocumentFragment优化DOM操作
+    const fragment = document.createDocumentFragment();
     
     for (let i = 0; i < particleCount; i++) {
         const particle = document.createElement('div');
@@ -808,9 +874,17 @@ function createParticles() {
         particle.style.left = Math.random() * 100 + '%';
         particle.style.top = Math.random() * 100 + '%';
         particle.style.animationDelay = Math.random() * 6 + 's';
-        particle.style.animationDuration = (Math.random() * 3 + 3) + 's';
-        particlesContainer.appendChild(particle);
+        particle.style.animationDuration = (Math.random() * 2 + 4) + 's'; // 减慢动画
+        
+        // 启用硬件加速
+        particle.style.transform = 'translate3d(0, 0, 0)';
+        particle.style.willChange = 'transform';
+        
+        fragment.appendChild(particle);
     }
+    
+    // 一次性添加所有粒子
+    particlesContainer.appendChild(fragment);
 }
 
 // 工具函数

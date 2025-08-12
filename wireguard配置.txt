@@ -1,0 +1,63 @@
+服务端：
+[Interface]
+Address = 10.50.0.1/24
+MTU = 1420
+SaveConfig = true
+PostUp = iptables -t nat -A POSTROUTING -s 10.50.0.0/24 -o eth0 -j MASQUERADE; iptables -A INPUT -p udp -m udp --dport 51824 -j ACCEPT; iptables -I FORWARD 1 -i %i -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -s 10.50.0.0/24 -o eth0 -j MASQUERADE; iptables -D INPUT -p udp -m udp --dport 51824 -j ACCEPT; iptables -D FORWARD -i %i -j ACCEPT
+ListenPort = 51824
+PrivateKey = WGwuOjkmwlwqopSV3PoMczjN2Ikvmkb9qKsgK6ixh3U=
+
+[Peer]
+# 模块端 (树莓派)
+PublicKey = RUJm//EmKz9BbYfoT/b+F6tHKWg6q/aJGg4OTNKLa2Y=
+PresharedKey = uwkjBz+CoavIV8Fo01Apl4+SunKFB+/aLBl1iNl4AgM=
+# 修正：告诉服务器，此Peer负责它自己的VPN IP和它背后的整个局域网
+AllowedIPs = 10.50.0.2/32, 192.168.50.0/24
+PersistentKeepalive = 25
+
+[Peer]
+# 电脑端
+PublicKey = LHo7SCpTwvhw8syCY+9XuvUMIT9RtEjtFzShUbs7cVw=
+PresharedKey = 4ULYVAQkN1flk8kpAgrhrlLehLISdAjSYI+ke+SxUn4=
+# 修正：电脑端只是一个普通客户端，只负责它自己的VPN IP
+AllowedIPs = 10.50.0.3/32
+PersistentKeepalive = 25
+
+
+
+模块端：
+
+[Interface]
+PrivateKey = xpuTcSJJP1Rme8Wh8OYSZyVjoE1w7WPujw5f6ys4xso=
+Address = 10.50.0.2/32
+
+# --- 王者版 PostUp / PostDown ---
+# 1. iptables -I FORWARD 1: 使用插入(-I)代替追加(-A)，确保规则最先执行，绕过Docker。
+# 2. -s 10.50.0.0/24 -o wlan0: 精准控制NAT范围，避免冲突。
+PostUp = iptables -I FORWARD 1 -o %i -j ACCEPT; iptables -I FORWARD 1 -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -s 10.50.0.0/24 -o wlan0 -j MASQUERADE
+PostDown = iptables -D FORWARD -o %i -j ACCEPT; iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -s 10.50.0.0/24 -o wlan0 -j MASQUERADE
+
+[Peer]
+PublicKey = vXC6/VGUTWAP3ccdqGBfNaUwwC27/bD5WWuhKb5HYSI=
+Endpoint = 118.178.243.130:51824
+AllowedIPs = 10.50.0.0/24
+PresharedKey = uwkjBz+CoavIV8Fo01Apl4+SunKFB+/aLBl1iNl4AgM=
+PersistentKeepalive = 25
+
+
+
+
+电脑端：
+
+[Interface]
+PrivateKey = FKCI8wps72pi+uBUICn5v6Bn6NSHZ8eRZXqkxddrkXk=
+Address = 10.50.0.3/32
+DNS = 8.8.8.8, 8.8.4.4
+
+[Peer]
+PublicKey = vXC6/VGUTWAP3ccdqGBfNaUwwC27/bD5WWuhKb5HYSI=
+PresharedKey = 4ULYVAQkN1flk8kpAgrhrlLehLISdAjSYI+ke+SxUn4=
+AllowedIPs = 10.50.0.0/24, 192.168.50.0/24
+Endpoint = 118.178.243.130:51824
+PersistentKeepalive = 25

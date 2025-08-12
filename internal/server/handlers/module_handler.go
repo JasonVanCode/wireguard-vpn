@@ -67,7 +67,7 @@ func (mh *ModuleHandler) CreateModule(c *gin.Context) {
 
 	// 设置默认值
 	if req.AllowedIPs == "" {
-		req.AllowedIPs = "192.168.1.0/24"
+		req.AllowedIPs = "192.168.50.0/24" // 使用配置文档中的默认网段
 	}
 	if req.PersistentKeepalive == 0 {
 		req.PersistentKeepalive = 25
@@ -95,14 +95,14 @@ func (mh *ModuleHandler) CreateModule(c *gin.Context) {
 		return
 	}
 
-	// 构建模块配置
-	moduleConfig := &services.ModuleConfig{
+	// 构建模块创建请求
+	moduleData := &models.ModuleCreateRequest{
 		Name:                req.Name,
 		Location:            req.Location,
 		Description:         req.Description,
 		InterfaceID:         req.InterfaceID,
-		LocalIP:             req.LocalIP,
 		AllowedIPs:          req.AllowedIPs,
+		LocalIP:             req.LocalIP,
 		PersistentKeepalive: req.PersistentKeepalive,
 		DNS:                 req.DNS,
 		AutoGenerateKeys:    req.AutoGenerateKeys,
@@ -110,7 +110,7 @@ func (mh *ModuleHandler) CreateModule(c *gin.Context) {
 		ConfigTemplate:      req.ConfigTemplate,
 	}
 
-	module, err := mh.moduleService.CreateModuleWithConfig(moduleConfig)
+	module, err := mh.moduleService.CreateModule(moduleData)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,

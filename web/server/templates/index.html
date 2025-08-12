@@ -464,18 +464,31 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="moduleAllowedIPs" class="form-label">允许访问的网段 (内网穿透)</label>
-                                    <input type="text" class="form-control" id="moduleAllowedIPs" name="allowed_ips" 
-                                           value="192.168.1.0/24" placeholder="192.168.2.0/24,10.0.0.0/8">
-                                    <div class="form-text">配置模块可以访问的内网网段，支持多个网段用逗号分隔。例如：192.168.2.0/24 可以访问内网，0.0.0.0/0 可以访问全网</div>
+                                    <label for="moduleAllowedIPs" class="form-label">允许访问的网段 (内网穿透) *</label>
+                                    <select class="form-control" id="moduleAllowedIPs" name="allowed_ips" required>
+                                        <option value="192.168.50.0/24">192.168.50.0/24 (参考配置)</option>
+                                        <option value="192.168.1.0/24">192.168.1.0/24 (常用)</option>
+                                        <option value="192.168.0.0/24">192.168.0.0/24 (常用)</option>
+                                        <option value="10.0.0.0/24">10.0.0.0/24 (企业网)</option>
+                                        <option value="">自定义网段</option>
+                                    </select>
+                                    <input type="text" class="form-control mt-2 d-none" id="moduleAllowedIPsCustom" 
+                                           placeholder="例如：192.168.2.0/24,10.0.0.0/8">
+                                    <div class="form-text">
+                                        选择模块背后的内网网段。<strong>这是关键配置</strong>：允许VPN用户访问模块所在的局域网。
+                                        <br>根据配置文档，这将在服务端的AllowedIPs中配置为："模块VPN_IP/32, 选择的网段"
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="moduleLocalIP" class="form-label">模块内网IP地址</label>
                                     <input type="text" class="form-control" id="moduleLocalIP" name="local_ip" 
-                                           placeholder="例如：192.168.1.100">
-                                    <div class="form-text">模块设备在内网的实际IP地址，用于NAT转发。如果不填写，系统将自动推导为内网段的第一个IP（如192.168.1.1）</div>
+                                           placeholder="例如：192.168.50.241">
+                                    <div class="form-text">
+                                        模块设备在内网的实际IP地址。<strong>重要</strong>：这个IP用于NAT转发实现内网穿透。
+                                        <br>如留空，系统将推导为所选网段的第一个IP（如192.168.50.1）
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -700,17 +713,41 @@
                             </div>
                         </div>
 
-                        <!-- 预设模板 -->
+                        <!-- 配置模板 -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="mb-3">
+                                    <label for="interfaceTemplate" class="form-label">配置模板</label>
+                                    <select class="form-control" id="configTemplate" name="config_template">
+                                        <option value="standard">标准配置（推荐）</option>
+                                        <option value="high-capacity">高容量配置</option>
+                                        <option value="lan-bridge">内网穿透专用</option>
+                                        <option value="custom">自定义配置</option>
+                                    </select>
+                                    <div class="form-text">选择配置模板将自动填入推荐的网络参数</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 配置预览 -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div id="interfaceConfigPreview"></div>
+                            </div>
+                        </div>
+
+                        <!-- 预设建议 -->
                         <div class="row">
                             <div class="col-md-12">
                                 <div class="alert alert-info" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary-color); color: var(--text-primary);">
                                     <i class="fas fa-lightbulb me-2"></i>
-                                    <strong>建议配置：</strong>
+                                    <strong>基于配置文档的建议：</strong>
                                     <ul class="mb-0 mt-2">
-                                        <li>接口名称：按顺序命名（wg0, wg1, wg2...）</li>
-                                        <li>网络段：使用不同的网段避免冲突（10.10.x.0/24, 10.11.x.0/24...）</li>
-                                        <li>端口：依次递增（51820, 51821, 51822...）</li>
-                                        <li>系统将自动生成WireGuard密钥对</li>
+                                        <li>接口名称：按顺序命名（wg0, wg1, wg2...）对应配置文档中的wg5</li>
+                                        <li>网络段：使用不同网段（10.50.x.0/24, 10.51.x.0/24...）避免冲突</li>
+                                        <li>端口：依次递增（51824, 51825, 51826...）对应配置文档端口</li>
+                                        <li>系统将自动生成密钥对并配置标准防火墙规则</li>
+                                        <li>支持模块端内网穿透和客户端漫游访问</li>
                                     </ul>
                                 </div>
                             </div>
@@ -719,6 +756,9 @@
                 </div>
                 <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-info" onclick="updateInterfaceConfigPreview()">
+                        <i class="fas fa-eye me-2"></i>预览配置
+                    </button>
                     <button type="button" class="btn btn-success" onclick="submitCreateInterface()">
                         <i class="fas fa-plus me-2"></i>创建接口
                     </button>
@@ -729,7 +769,18 @@
 
     <!-- Bootstrap JS -->
     <script src="/static/js/bootstrap.bundle.min.js"></script>
-    <!-- Dashboard JS -->
-    <script src="/assets/js/dashboard.js"></script>
+    
+    <!-- EITEC VPN - 模块化JavaScript文件 -->
+    <!-- 1. 共享工具函数 (必须最先加载) -->
+    <script src="/assets/js/shared-utils.js"></script>
+    
+    <!-- 2. 功能模块 (可以并行加载) -->
+    <script src="/assets/js/module-management.js"></script>
+    <script src="/assets/js/interface-management.js"></script>
+    <script src="/assets/js/user-management.js"></script>
+    <script src="/assets/js/system-config.js"></script>
+    
+    <!-- 3. 核心仪表板 (最后加载) -->
+    <script src="/assets/js/dashboard-core.js"></script>
 </body>
 </html>

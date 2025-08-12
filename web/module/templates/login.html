@@ -60,6 +60,8 @@
             border-radius: 50%;
             pointer-events: none;
             animation: float 6s ease-in-out infinite;
+            will-change: transform;
+            transform: translate3d(0, 0, 0);
         }
 
         @keyframes float {
@@ -276,6 +278,70 @@
             margin-right: 0.5rem;
         }
 
+        /* 性能优化类 */
+        .reduced-animations * {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+        
+        .reduced-animations .particle {
+            display: none !important;
+        }
+        
+        .reduced-animations .login-card::before {
+            display: none !important;
+        }
+        
+        /* 硬件加速优化 */
+        .particle {
+            will-change: transform;
+            transform: translate3d(0, 0, 0);
+        }
+        
+        .login-card {
+            will-change: transform;
+            transform: translate3d(0, 0, 0);
+        }
+        
+        /* 简化复杂效果 */
+        @media (max-width: 768px) {
+            .login-card {
+                margin: 1rem;
+                padding: 2rem;
+                backdrop-filter: none; /* 移动端移除毛玻璃效果 */
+                background: rgba(30, 41, 59, 0.95); /* 使用不透明背景 */
+            }
+            
+            .logo-text h2 {
+                font-size: 1.3rem;
+            }
+            
+            .particles {
+                display: none; /* 移动端隐藏粒子 */
+            }
+        }
+        
+        /* 低性能设备优化 */
+        @media (prefers-reduced-motion: reduce) {
+            .particle {
+                display: none;
+            }
+            
+            .login-card::before {
+                display: none;
+            }
+            
+            .logo-icon {
+                animation: none;
+            }
+            
+            * {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        
         /* 响应式设计 */
         @media (max-width: 768px) {
             .login-card {
@@ -407,14 +473,15 @@
         // 粒子背景动画
         function createParticles() {
             const particlesContainer = document.getElementById('particles');
-            const particleCount = 30;
+            // 减少粒子数量，根据设备性能调整
+            const particleCount = getOptimalParticleCount();
             
             for (let i = 0; i < particleCount; i++) {
                 const particle = document.createElement('div');
                 particle.className = 'particle';
                 
                 // 随机大小
-                const size = Math.random() * 4 + 2;
+                const size = Math.random() * 3 + 1; // 减小粒子大小
                 particle.style.width = size + 'px';
                 particle.style.height = size + 'px';
                 
@@ -425,7 +492,85 @@
                 // 随机动画延迟
                 particle.style.animationDelay = Math.random() * 6 + 's';
                 
+                // 使用CSS transform3d开启硬件加速
+                particle.style.transform = 'translate3d(0,0,0)';
+                
                 particlesContainer.appendChild(particle);
+            }
+        }
+        
+        // 根据设备性能决定粒子数量
+        function getOptimalParticleCount() {
+            // 检测设备性能
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(userAgent);
+            
+            // 检测GPU性能
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            
+            if (isMobile) {
+                return 8; // 移动端减少粒子
+            } else if (!gl) {
+                return 10; // 无WebGL支持，减少粒子
+            } else {
+                // 检测性能等级
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                if (debugInfo) {
+                    const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                    if (renderer && renderer.toLowerCase().includes('intel')) {
+                        return 15; // Intel显卡，中等数量
+                    }
+                }
+                return 20; // 默认数量（已减少）
+            }
+        }
+        
+        // 性能优化：使用RAF节流
+        let animationId;
+        function optimizeAnimations() {
+            // 减少动画频率
+            const preferredFrameRate = 30; // 30fps而不是60fps
+            const frameInterval = 1000 / preferredFrameRate;
+            let lastFrameTime = 0;
+            
+            function animate(currentTime) {
+                if (currentTime - lastFrameTime >= frameInterval) {
+                    // 执行必要的动画更新
+                    lastFrameTime = currentTime;
+                }
+                animationId = requestAnimationFrame(animate);
+            }
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        // 页面可见性API优化
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                // 页面不可见时停止动画
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                // 暂停CSS动画
+                document.body.style.animationPlayState = 'paused';
+            } else {
+                // 页面可见时恢复动画
+                optimizeAnimations();
+                document.body.style.animationPlayState = 'running';
+            }
+        }
+        
+        // 检测并减少动画（低端设备）
+        function detectAndReduceAnimations() {
+            // 检测是否应该减少动画
+            const shouldReduceAnimations = 
+                navigator.hardwareConcurrency <= 2 || // 低核心数
+                navigator.deviceMemory <= 2 || // 低内存
+                window.matchMedia('(prefers-reduced-motion: reduce)').matches; // 用户偏好
+            
+            if (shouldReduceAnimations) {
+                document.body.classList.add('reduced-animations');
             }
         }
         
@@ -590,6 +735,11 @@
             
             // 自动聚焦用户名输入框
             document.getElementById('username').focus();
+
+            // 性能优化
+            optimizeAnimations();
+            detectAndReduceAnimations();
+            window.addEventListener('visibilitychange', handleVisibilityChange);
         });
     </script>
 </body>

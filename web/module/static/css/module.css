@@ -20,7 +20,7 @@
 }
 
 body {
-    background: linear-gradient(135deg, var(--dark-bg) 0%, #1a202c 100%);
+    background: var(--dark-bg); /* 简化背景 */
     color: var(--text-primary);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     overflow-x: hidden;
@@ -28,6 +28,8 @@ body {
     /* 优化滚动性能 */
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    /* 硬件加速 */
+    transform: translate3d(0, 0, 0);
 }
 
 /* 头部栏 */
@@ -38,10 +40,11 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    backdrop-filter: blur(10px);
     position: sticky;
     top: 0;
     z-index: 100;
+    /* 硬件加速 */
+    transform: translate3d(0, 0, 0);
 }
 
 .logo {
@@ -185,7 +188,7 @@ body {
 }
 
 .stat-card:hover {
-    transform: translateY(-2px) translateZ(0);
+    transform: translate3d(0, -2px, 0);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
@@ -1144,6 +1147,80 @@ textarea::-ms-input-placeholder {
     gap: 0.5rem;
     transition: all 0.3s ease;
     cursor: pointer;
+}
+
+/* 性能优化 */
+.performance-mode {
+    --transition-speed: 0.01ms;
+}
+
+.performance-mode * {
+    animation-duration: var(--transition-speed) !important;
+    transition-duration: var(--transition-speed) !important;
+}
+
+.performance-mode .background-particles {
+    display: none !important;
+}
+
+.performance-mode .stat-card::before {
+    display: none !important;
+}
+
+/* 硬件加速优化 */
+.stat-card {
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+}
+
+.header-btn {
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+    .background-particles {
+        display: none;
+    }
+    
+    .header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .main-content {
+        padding: 1rem;
+        grid-gap: 0.75rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+    
+    .detail-card {
+        padding: 1rem;
+    }
+}
+
+/* 低性能设备优化 */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .background-particles {
+        display: none;
+    }
+    
+    .stat-card::before {
+        display: none;
+    }
+    
+    .logo i {
+        filter: none;
+    }
 }
 
 .btn-empty-action:hover {

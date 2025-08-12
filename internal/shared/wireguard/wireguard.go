@@ -110,11 +110,11 @@ Address = %s/32`, module.PrivateKey, module.IPAddress)
 	// 添加NAT转发规则，实现内网穿透
 	config += fmt.Sprintf(`
 # NAT转发规则 - 实现内网穿透功能
-# 参考用户成功配置，添加SNAT和FORWARD规则
-PostUp = iptables -t nat -A POSTROUTING -s %s -j SNAT --to-source %s; iptables -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -s %s -j SNAT --to-source %s; iptables -D FORWARD -i %s -j ACCEPT; iptables -D FORWARD -o %s -j ACCEPT`,
-		wgInterface.Network, finalLocalIP, interfaceName, interfaceName,
-		wgInterface.Network, finalLocalIP, interfaceName, interfaceName)
+# 参考用户成功配置，添加SNAT规则
+PostUp = iptables -t nat -A POSTROUTING -s %s -j SNAT --to-source %s
+PostDown = iptables -t nat -D POSTROUTING -s %s -j SNAT --to-source %s`,
+		wgInterface.Network, finalLocalIP,
+		wgInterface.Network, finalLocalIP)
 
 	// 根据用户成功配置的模式设置AllowedIPs
 	// 参考：AllowedIPs = 10.0.8.0/24 (整个VPN网段，实现VPN内部互通)

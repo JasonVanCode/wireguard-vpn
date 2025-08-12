@@ -3,6 +3,8 @@ package services
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"eitec-vpn/internal/server/database"
@@ -194,54 +196,226 @@ func (ms *ModuleService) saveModuleConfig(moduleID uint, config *ModuleConfig) {
 }
 
 // CreateModule 创建新模块
-func (ms *ModuleService) CreateModule(name, location string) (*models.Module, error) {
-	// 检查模块名是否已存在
+func (ms *ModuleService) CreateModule(moduleData *models.ModuleCreateRequest) (*models.Module, error) {
+	// 参数验证
+	if err := ms.validateModuleData(moduleData); err != nil {
+		return nil, fmt.Errorf("参数验证失败: %w", err)
+	}
+
+	// 检查接口是否存在且可用
+	var wgInterface models.WireGuardInterface
+	if err := ms.db.First(&wgInterface, moduleData.InterfaceID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, errors.New("指定的WireGuard接口不存在")
+		}
+		return nil, fmt.Errorf("查询接口失败: %w", err)
+	}
+
+	// 🔒 安全检查：如果接口正在运行，不允许添加模块
+	if wgInterface.Status == models.InterfaceStatusUp || wgInterface.Status == models.InterfaceStatusStarting {
+		return nil, fmt.Errorf("接口 '%s' 当前处于运行状态，请先停止接口后再添加模块", wgInterface.Name)
+	}
+
+	// 检查是否已达到最大连接数
+	if wgInterface.TotalPeers >= wgInterface.MaxPeers {
+		return nil, fmt.Errorf("接口 '%s' 已达到最大连接数 (%d/%d)", wgInterface.Name, wgInterface.TotalPeers, wgInterface.MaxPeers)
+	}
+
+	// 检查模块名称是否重复
 	var existingModule models.Module
-	if err := ms.db.Where("name = ?", name).First(&existingModule).Error; err == nil {
+	if err := ms.db.Where("name = ?", moduleData.Name).First(&existingModule).Error; err == nil {
 		return nil, errors.New("模块名称已存在")
 	}
 
-	// 生成WireGuard密钥对
-	keyPair, err := wireguard.GenerateKeyPair()
-	if err != nil {
-		return nil, fmt.Errorf("生成密钥对失败: %w", err)
+	// 自动生成密钥对（如果需要）
+	var keyPair *models.WireGuardKey
+	var err error
+	if moduleData.AutoGenerateKeys {
+		keyPair, err = wireguard.GenerateKeyPair()
+		if err != nil {
+			return nil, fmt.Errorf("生成密钥对失败: %w", err)
+		}
+	} else {
+		// 使用提供的密钥
+		keyPair = &models.WireGuardKey{
+			PublicKey:  moduleData.PublicKey,
+			PrivateKey: moduleData.PrivateKey,
+		}
 	}
 
-	// 分配IP地址
-	ipAddress, err := database.GetAvailableIP()
+	// 自动分配IP地址（如果需要）
+	var ipAddress string
+	if moduleData.AutoAssignIP {
+		ipAddress, err = ms.assignIPAddress(wgInterface.Network, wgInterface.ID)
+		if err != nil {
+			return nil, fmt.Errorf("分配IP地址失败: %w", err)
+		}
+	} else {
+		ipAddress = moduleData.IPAddress
+	}
+
+	// 如果没有提供 LocalIP，尝试从 AllowedIPs 中推导
+	localIP := moduleData.LocalIP
+	if localIP == "" && moduleData.AllowedIPs != "" {
+		localIP = ms.inferLocalIPFromAllowedIPs(moduleData.AllowedIPs)
+	}
+
+	// 生成预共享密钥增强安全性
+	presharedKey, err := wireguard.GeneratePresharedKey()
 	if err != nil {
-		return nil, fmt.Errorf("分配IP地址失败: %w", err)
+		return nil, fmt.Errorf("生成预共享密钥失败: %w", err)
 	}
 
 	// 创建模块记录
 	module := &models.Module{
-		Name:         name,
-		Location:     location,
+		Name:         moduleData.Name,
+		Location:     moduleData.Location,
+		Description:  moduleData.Description,
+		InterfaceID:  moduleData.InterfaceID,
 		PublicKey:    keyPair.PublicKey,
 		PrivateKey:   keyPair.PrivateKey,
 		IPAddress:    ipAddress,
+		LocalIP:      localIP,
 		Status:       models.ModuleStatusUnconfigured,
-		AllowedIPs:   "192.168.1.0/24",
-		PersistentKA: 25,
+		AllowedIPs:   moduleData.AllowedIPs,
+		PersistentKA: moduleData.PersistentKeepalive,
+		PresharedKey: presharedKey,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
+	// 保存到数据库
 	if err := ms.db.Create(module).Error; err != nil {
-		// 如果创建失败，释放IP地址
-		database.ReleaseIP(ipAddress)
-		return nil, fmt.Errorf("创建模块失败: %w", err)
+		return nil, fmt.Errorf("保存模块失败: %w", err)
 	}
 
-	// 分配IP地址给模块
-	if err := database.AllocateIP(ipAddress, module.ID); err != nil {
-		ms.db.Delete(module)
-		return nil, fmt.Errorf("分配IP地址失败: %w", err)
+	// 更新接口连接数
+	if err := ms.db.Model(&wgInterface).Update("total_peers", gorm.Expr("total_peers + ?", 1)).Error; err != nil {
+		// 记录错误但不阻塞流程
+		fmt.Printf("⚠️ 更新接口连接数失败: %v\n", err)
 	}
 
-	// 记录操作日志
-	// 简化：使用标准日志而不是数据库日志
-	fmt.Printf("模块创建成功 - 接口: %s, 模板: %s\n", "N/A", "N/A")
+	// 🔧 重要：更新接口配置文件（包含新模块的Peer段）
+	if err := ms.updateInterfaceConfig(moduleData.InterfaceID); err != nil {
+		// 配置文件更新失败，但模块已创建，记录错误
+		fmt.Printf("⚠️ 更新接口配置文件失败: %v\n", err)
+		fmt.Printf("💡 模块已创建成功，但接口配置文件需要手动更新\n")
+	}
 
+	// 返回完整的模块信息（包含接口信息）
+	if err := ms.db.Preload("Interface").First(module, module.ID).Error; err != nil {
+		fmt.Printf("⚠️ 重新加载模块信息失败: %v\n", err)
+	}
+
+	fmt.Printf("✅ 模块创建成功: %s (IP: %s, 内网: %s)\n", module.Name, module.IPAddress, module.AllowedIPs)
 	return module, nil
+}
+
+// assignIPAddress 从IP池中分配IP地址
+func (ms *ModuleService) assignIPAddress(networkCIDR string, interfaceID uint) (string, error) {
+	// 获取网络的可用IP
+	var availableIP models.IPPool
+	if err := ms.db.Where("network = ? AND is_used = ?", networkCIDR, false).First(&availableIP).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", errors.New("没有可用的IP地址")
+		}
+		return "", fmt.Errorf("查询IP池失败: %w", err)
+	}
+
+	// 标记IP为已使用
+	if err := ms.db.Model(&availableIP).Updates(map[string]interface{}{
+		"is_used":   true,
+		"module_id": nil, // 暂时不关联模块，创建成功后再更新
+	}).Error; err != nil {
+		return "", fmt.Errorf("更新IP池失败: %w", err)
+	}
+
+	return availableIP.IPAddress, nil
+}
+
+// inferLocalIPFromAllowedIPs 从AllowedIPs中推导LocalIP
+func (ms *ModuleService) inferLocalIPFromAllowedIPs(allowedIPs string) string {
+	if allowedIPs == "" {
+		return ""
+	}
+
+	// 解析允许的IP段，找出第一个私有网段
+	networks := strings.Split(allowedIPs, ",")
+	for _, network := range networks {
+		network = strings.TrimSpace(network)
+
+		// 跳过全网和VPN网段
+		if network == "0.0.0.0/0" || strings.HasPrefix(network, "10.50.") || strings.HasPrefix(network, "10.10.") {
+			continue
+		}
+
+		// 检查是否为私有网段
+		if strings.HasPrefix(network, "192.168.") || strings.HasPrefix(network, "10.") || strings.HasPrefix(network, "172.") {
+			// 推导出网段的第一个IP作为LocalIP
+			if ip, ipNet, err := net.ParseCIDR(network); err == nil {
+				// 获取网络地址并加1作为推荐的LocalIP
+				networkIP := ip.Mask(ipNet.Mask)
+				localIP := make(net.IP, len(networkIP))
+				copy(localIP, networkIP)
+				localIP[len(localIP)-1] = localIP[len(localIP)-1] + 1
+				return localIP.String()
+			}
+		}
+	}
+
+	return ""
+}
+
+// validateModuleData 验证模块创建数据
+func (ms *ModuleService) validateModuleData(data *models.ModuleCreateRequest) error {
+	if data.Name == "" {
+		return errors.New("模块名称不能为空")
+	}
+	if data.Location == "" {
+		return errors.New("模块位置不能为空")
+	}
+	if data.InterfaceID == 0 {
+		return errors.New("必须指定WireGuard接口")
+	}
+	if data.AllowedIPs == "" {
+		return errors.New("必须指定允许访问的网段")
+	}
+
+	// 验证网段格式
+	if !ms.validateNetworkFormat(data.AllowedIPs) {
+		return errors.New("网段格式不正确，请使用CIDR格式（如 192.168.50.0/24）")
+	}
+
+	// 验证保活间隔
+	if data.PersistentKeepalive < 0 || data.PersistentKeepalive > 300 {
+		return errors.New("保活间隔必须在0-300秒之间")
+	}
+
+	return nil
+}
+
+// validateNetworkFormat 验证网段格式
+func (ms *ModuleService) validateNetworkFormat(networks string) bool {
+	if networks == "" {
+		return false
+	}
+
+	networkList := strings.Split(networks, ",")
+	for _, network := range networkList {
+		network = strings.TrimSpace(network)
+
+		// 特殊处理全网访问
+		if network == "0.0.0.0/0" {
+			continue
+		}
+
+		// 验证CIDR格式
+		if _, _, err := net.ParseCIDR(network); err != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetModule 获取模块信息
