@@ -449,7 +449,7 @@ func (ms *ModuleService) GetModules(page, pageSize int, filters map[string]inter
 	var modules []models.Module
 	var total int64
 
-	query := ms.db.Model(&models.Module{})
+	query := ms.db.Model(&models.Module{}).Preload("Interface")
 
 	// 应用过滤条件
 	for key, value := range filters {
@@ -764,8 +764,8 @@ func (ms *ModuleService) SyncModuleStatus() error {
 			// 模块在线
 			status := models.ModuleStatusOnline
 
-			// 检查是否长时间未握手 (超过5分钟认为有问题)
-			if time.Since(peer.LatestHandshake) > 5*time.Minute {
+			// 使用统一的超时常量检查是否长时间未握手
+			if time.Since(peer.LatestHandshake) > config.WireGuardOnlineTimeout {
 				status = models.ModuleStatusWarning
 			}
 
@@ -849,19 +849,33 @@ func (ms *ModuleService) allocateIPForInterface(interfaceID uint, ip string, mod
 		return fmt.Errorf("查询接口失败: %w", err)
 	}
 
-	result := ms.db.Model(&models.IPPool{}).
-		Where("network = ? AND ip_address = ? AND is_used = ?", wgInterface.Network, ip, false).
-		Updates(map[string]interface{}{
+	// 检查IP是否已被使用
+	var existingIP models.IPPool
+	if err := ms.db.Where("network = ? AND ip_address = ?", wgInterface.Network, ip).First(&existingIP).Error; err == nil {
+		// IP已存在，检查是否可用
+		if existingIP.IsUsed {
+			return fmt.Errorf("IP地址 %s 已被使用", ip)
+		}
+		// 标记为已使用
+		if err := ms.db.Model(&existingIP).Updates(map[string]interface{}{
 			"is_used":   true,
 			"module_id": moduleID,
-		})
-
-	if result.Error != nil {
-		return fmt.Errorf("分配IP地址失败: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("IP地址 %s 不可用", ip)
+		}).Error; err != nil {
+			return fmt.Errorf("更新IP池失败: %w", err)
+		}
+	} else if err == gorm.ErrRecordNotFound {
+		// IP不存在，创建新记录
+		newIPPool := models.IPPool{
+			Network:   wgInterface.Network,
+			IPAddress: ip,
+			IsUsed:    true,
+			ModuleID:  &moduleID,
+		}
+		if err := ms.db.Create(&newIPPool).Error; err != nil {
+			return fmt.Errorf("创建IP池记录失败: %w", err)
+		}
+	} else {
+		return fmt.Errorf("查询IP池失败: %w", err)
 	}
 
 	return nil
@@ -875,12 +889,10 @@ func (ms *ModuleService) releaseIPForInterface(interfaceID uint, ip string) erro
 		return fmt.Errorf("查询接口失败: %w", err)
 	}
 
-	result := ms.db.Model(&models.IPPool{}).
+	// 硬删除IP池记录
+	result := ms.db.Unscoped().
 		Where("network = ? AND ip_address = ?", wgInterface.Network, ip).
-		Updates(map[string]interface{}{
-			"is_used":   false,
-			"module_id": nil,
-		})
+		Delete(&models.IPPool{})
 
 	if result.Error != nil {
 		return fmt.Errorf("释放IP地址失败: %w", result.Error)

@@ -12,8 +12,7 @@
     <!-- Dashboard CSS -->
     <link href="/assets/css/dashboard.css" rel="stylesheet">
     
-    <!-- ECharts -->
-    <script src="/static/js/echarts.min.js"></script>
+
 </head>
 <body>
     <!-- 头部 -->
@@ -58,270 +57,91 @@
         <!-- 统计卡片 -->
         <div class="stat-card stat-card-1">
             <div class="stat-header">
-                <div class="stat-title">在线模块</div>
+                <div class="stat-title">模块状态</div>
                 <div class="stat-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--success-color);">
                     <i class="fas fa-server"></i>
                 </div>
             </div>
-            <div class="stat-value" id="onlineModules">--</div>
+            <div class="stat-value" id="moduleStatus">--</div>
             <div class="stat-change positive">
                 <i class="fas fa-arrow-up"></i>
-                <span>实时数据</span>
+                <span>在线/总数</span>
             </div>
         </div>
 
         <div class="stat-card stat-card-2">
             <div class="stat-header">
-                <div class="stat-title">总模块数</div>
+                <div class="stat-title">磁盘使用率</div>
                 <div class="stat-icon" style="background: rgba(37, 99, 235, 0.2); color: var(--primary-color);">
-                    <i class="fas fa-network-wired"></i>
+                    <i class="fas fa-hdd"></i>
                 </div>
             </div>
-            <div class="stat-value" id="totalModules">--</div>
+            <div class="stat-value" id="diskUsage">--</div>
             <div class="stat-change">
-                <i class="fas fa-info-circle"></i>
-                <span>已注册</span>
+                <i class="fas fa-chart-pie"></i>
+                <span>实时监控</span>
             </div>
         </div>
 
         <div class="stat-card stat-card-3">
             <div class="stat-header">
-                <div class="stat-title">今日流量</div>
+                <div class="stat-title">CPU使用率</div>
                 <div class="stat-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--warning-color);">
-                    <i class="fas fa-chart-area"></i>
+                    <i class="fas fa-microchip"></i>
                 </div>
             </div>
-            <div class="stat-value" id="todayTraffic">--</div>
-            <div class="stat-change positive">
-                <i class="fas fa-arrow-up"></i>
-                <span id="trafficTrend">+15%</span>
+            <div class="stat-value" id="cpuUsage">--</div>
+            <div class="stat-change">
+                <i class="fas fa-chart-line"></i>
+                <span>实时监控</span>
             </div>
         </div>
 
         <div class="stat-card stat-card-4">
             <div class="stat-header">
-                <div class="stat-title">系统负载</div>
+                <div class="stat-title">内存使用率</div>
                 <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger-color);">
-                    <i class="fas fa-microchip"></i>
+                    <i class="fas fa-memory"></i>
                 </div>
             </div>
-            <div class="stat-value" id="systemLoad">--</div>
+            <div class="stat-value" id="memoryUsage">--</div>
             <div class="stat-change">
-                <i class="fas fa-heartbeat"></i>
-                <span>平均值</span>
+                <i class="fas fa-chart-bar"></i>
+                <span>实时监控</span>
             </div>
         </div>
 
-        <!-- 流量趋势图 -->
-        <div class="chart-card chart-card-1">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <i class="fas fa-chart-line" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
-                    实时流量监控
-                </div>
-                <div class="chart-controls">
-                    <button class="chart-control-btn active" onclick="switchTimeRange('1h')">1小时</button>
-                    <button class="chart-control-btn" onclick="switchTimeRange('6h')">6小时</button>
-                    <button class="chart-control-btn" onclick="switchTimeRange('24h')">24小时</button>
-                </div>
-            </div>
-            <div id="trafficChart" style="width: 100%; height: 260px;"></div>
-        </div>
 
-        <!-- 模块状态分布 -->
-        <div class="chart-card chart-card-2">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <i class="fas fa-chart-pie" style="margin-right: 0.5rem; color: var(--success-color);"></i>
-                    模块状态
-                </div>
-            </div>
-            <div id="statusChart" style="width: 100%; height: 220px;"></div>
-        </div>
 
-        <!-- 系统资源监控 -->
-        <div class="chart-card chart-card-3">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <i class="fas fa-microchip" style="margin-right: 0.5rem; color: var(--warning-color);"></i>
-                    系统资源
-                </div>
-            </div>
-            <div style="padding: 1rem 0;">
-                <div style="margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span>CPU 使用率</span>
-                        <span id="cpuUsage">--</span>
-                    </div>
-                    <div class="progress-bar-custom">
-                        <div class="progress-fill success" id="cpuProgress" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div style="margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span>内存使用率</span>
-                        <span id="memoryUsage">--</span>
-                    </div>
-                    <div class="progress-bar-custom">
-                        <div class="progress-fill warning" id="memoryProgress" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span>磁盘使用率</span>
-                        <span id="diskUsage">--</span>
-                    </div>
-                    <div class="progress-bar-custom">
-                        <div class="progress-fill danger" id="diskProgress" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- 模块列表 -->
-        <div class="chart-card modules-card">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <i class="fas fa-network-wired" style="margin-right: 0.5rem; color: var(--accent-color);"></i>
-                    模块管理
-                </div>
-                <button class="chart-control-btn" onclick="showAddModuleModal()">
-                    <i class="fas fa-plus"></i> 添加模块
-                </button>
-            </div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>模块名称</th>
-                            <th>状态</th>
-                            <th>位置</th>
-                            <th>IP地址</th>
-                            <th>最后心跳</th>
-                            <th>流量</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="modulesTableBody">
-                        <tr>
-                            <td colspan="7">
-                                <div class="loading">
-                                    <div class="spinner"></div>
-                                    加载中...
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <!-- 系统信息 -->
-        <div class="chart-card system-card">
-            <div class="chart-header">
-                <h3 class="chart-title">
-                    <i class="fas fa-server" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
-                    系统信息
-                </h3>
-            </div>
-            
-            <!-- 接口统计 -->
-            <div class="system-section">
-                <div class="section-header">
-                    <i class="fas fa-network-wired"></i>
-                    <span>接口统计</span>
-                </div>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <div class="config-icon">
-                            <i class="fas fa-sitemap"></i>
-                        </div>
-                        <div class="config-details">
-                            <div class="config-label">总接口数</div>
-                            <div class="config-value" id="totalInterfaces">--</div>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-icon">
-                            <i class="fas fa-ethernet"></i>
-                        </div>
-                        <div class="config-details">
-                            <div class="config-label">活跃接口</div>
-                            <div class="config-value" id="activeInterfaces">--</div>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-icon">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="config-details">
-                            <div class="config-label">连接容量</div>
-                            <div class="config-value" id="interfaceCapacity">--</div>
-                        </div>
+                <!-- 底部面板容器 -->
+        <div class="bottom-panels-container">
+            <!-- 接口-模块管理（合并视图） -->
+            <div class="chart-card system-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="fas fa-network-wired" style="margin-right: 0.5rem; color: var(--accent-color);"></i>
+                        接口-模块管理
+                    </h3>
+                    <div class="chart-controls">
+                        <button class="chart-control-btn" onclick="showCreateInterfaceModal()">
+                            <i class="fas fa-plus"></i> 创建接口
+                        </button>
+                        <button class="chart-control-btn" onclick="showAddModuleModal()">
+                            <i class="fas fa-plus"></i> 添加模块
+                        </button>
                     </div>
                 </div>
-            </div>
-
-            <!-- 主接口配置 -->
-            <div class="system-section">
-                <div class="section-header">
-                    <i class="fas fa-cog"></i>
-                    <span>主接口配置</span>
-                </div>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <div class="config-icon">
-                            <i class="fas fa-sitemap"></i>
-                        </div>
-                        <div class="config-details">
-                            <div class="config-label">网络范围</div>
-                            <div class="config-value" id="networkConfig">10.10.0.0/24</div>
+                
+                <!-- 接口-模块卡片网格 -->
+                <div class="interface-module-grid" id="interfaceModuleGrid">
+                    <div class="loading-container">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            加载接口和模块信息中...
                         </div>
                     </div>
-                    <div class="config-item">
-                        <div class="config-icon">
-                            <i class="fas fa-ethernet"></i>
-                        </div>
-                        <div class="config-details">
-                            <div class="config-label">监听端口</div>
-                            <div class="config-value" id="portConfig">51820</div>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-icon">
-                            <i class="fas fa-globe"></i>
-                        </div>
-                        <div class="config-details">
-                            <div class="config-label">DNS服务器</div>
-                            <div class="config-value" id="dnsConfig">8.8.8.8</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 快速操作 -->
-            <div class="system-section">
-                <div class="section-header">
-                    <i class="fas fa-bolt"></i>
-                    <span>快速操作</span>
-                </div>
-                <div class="action-grid">
-                    <button class="action-btn primary" onclick="showWireGuardConfig()">
-                        <i class="fas fa-cogs"></i>
-                        <span>系统配置</span>
-                    </button>
-                    <button class="action-btn accent" onclick="showInterfaceManager()">
-                        <i class="fas fa-ethernet"></i>
-                        <span>接口管理</span>
-                    </button>
-                    <button class="action-btn success" onclick="refreshAllData()">
-                        <i class="fas fa-sync-alt"></i>
-                        <span>刷新数据</span>
-                    </button>
-                    <button class="action-btn secondary" onclick="showAddModuleModal()">
-                        <i class="fas fa-plus"></i>
-                        <span>添加模块</span>
-                    </button>
                 </div>
             </div>
         </div>
@@ -502,78 +322,18 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="moduleDNS" class="form-label">DNS服务器</label>
-                                    <input type="text" class="form-control" id="moduleDNS" name="dns" 
-                                           value="8.8.8.8,8.8.4.4" placeholder="8.8.8.8,8.8.4.4">
-                                    <div class="form-text">模块使用的DNS服务器</div>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- 高级选项 -->
-                        <div class="row">
-                            <div class="col-md-12">
-                                <h6 class="mb-3 mt-3" style="color: var(--warning-color);">
-                                    <i class="fas fa-cogs me-2"></i>高级选项
-                                </h6>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="autoGenerateKeys" name="auto_generate_keys" checked>
-                                        <label class="form-check-label" for="autoGenerateKeys">
-                                            自动生成密钥对
-                                        </label>
-                                    </div>
-                                    <div class="form-text">系统自动为模块生成WireGuard密钥对</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="autoAssignIP" name="auto_assign_ip" checked>
-                                        <label class="form-check-label" for="autoAssignIP">
-                                            自动分配IP地址
-                                        </label>
-                                    </div>
-                                    <div class="form-text">从IP池中自动分配可用IP地址</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 预设配置模板 -->
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label for="configTemplate" class="form-label">配置模板</label>
-                                    <select class="form-control" id="configTemplate" name="config_template">
-                                        <option value="default">默认配置</option>
-                                        <option value="high-security">高安全配置</option>
-                                        <option value="low-latency">低延迟配置</option>
-                                        <option value="custom">自定义配置</option>
-                                    </select>
-                                    <div class="form-text">选择预设的配置模板</div>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- 配置预览 -->
+                        <!-- 配置说明 -->
                         <div class="row">
                             <div class="col-md-12">
                                 <div class="alert alert-info" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary-color); color: var(--text-primary);">
                                     <i class="fas fa-info-circle me-2"></i>
-                                    <strong>配置说明：</strong>
+                                    <strong>简化配置：</strong>
                                     <ul class="mb-0 mt-2">
-                                        <li>系统将自动为模块生成WireGuard密钥对</li>
-                                        <li>从IP池中自动分配可用的IP地址</li>
-                                        <li>模块创建后将生成完整的配置文件，支持内网穿透功能</li>
-                                        <li>下载的配置文件将包含服务器管理IP + 指定的内网网段</li>
-                                        <li>模块可通过API获取配置并自动应用</li>
+                                        <li>系统自动生成密钥对和分配IP地址</li>
+                                        <li>支持内网穿透功能，VPN用户可访问模块所在局域网</li>
+                                        <li>配置文件自动生成，支持下载和API获取</li>
                                     </ul>
                                 </div>
                             </div>
@@ -652,6 +412,33 @@
                                     <input type="number" class="form-control" id="interfacePort" name="listen_port" required 
                                            placeholder="例如：51823" min="1024" max="65535">
                                     <div class="form-text">WireGuard监听端口</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="interfaceNetworkInterface" class="form-label">网络接口 *</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="interfaceNetworkInterface" name="network_interface" 
+                                               value="eth0" placeholder="例如：eth0, ens3, enp0s3">
+                                        <button type="button" class="btn btn-outline-secondary" id="detectNetworkInterface" title="自动检测网络接口">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">服务器的外网网络接口名称，用于NAT转发</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">常见接口名称</label>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary interface-preset" data-interface="eth0">eth0</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary interface-preset" data-interface="ens3">ens3</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary interface-preset" data-interface="enp0s3">enp0s3</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary interface-preset" data-interface="ens33">ens33</button>
+                                    </div>
+                                    <div class="form-text">点击快速选择常见的网络接口名称</div>
                                 </div>
                             </div>
                         </div>
@@ -778,7 +565,7 @@
     <script src="/assets/js/module-management.js"></script>
     <script src="/assets/js/interface-management.js"></script>
     <script src="/assets/js/user-management.js"></script>
-    <script src="/assets/js/system-config.js"></script>
+    <!-- <script src="/assets/js/system-config.js"></script> -->
     
     <!-- 3. 核心仪表板 (最后加载) -->
     <script src="/assets/js/dashboard-core.js"></script>

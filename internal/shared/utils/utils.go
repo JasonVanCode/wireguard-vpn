@@ -347,3 +347,16 @@ func EnsureDirForFile(filePath string) error {
 	dir := filepath.Dir(filePath)
 	return EnsureDir(dir)
 }
+
+// SanitizeFilename 清理文件名，移除特殊字符，确保文件名安全
+func SanitizeFilename(filename string) string {
+	// 移除或替换特殊字符，保留基本的ASCII字符
+	reg := regexp.MustCompile(`[^\w\.\-_]`)
+	safe := reg.ReplaceAllString(filename, "_")
+
+	// 移除多余的下划线
+	safe = regexp.MustCompile(`_+`).ReplaceAllString(safe, "_")
+	safe = strings.Trim(safe, "_")
+
+	return safe
+}

@@ -109,21 +109,15 @@ func main() {
 	userService := auth.NewUserService()
 	sessionManager := auth.NewSessionManager(cfg.Auth.SessionTimeout)
 
-	// 启动基于Cron的WireGuard状态同步调度器
-	cronScheduler := services.NewCronScheduler()
-	if err := cronScheduler.Start(); err != nil {
-		log.Fatalf("启动定时任务调度器失败: %v", err)
-	}
-
 	// 设置路由
 	var router *gin.Engine
 	if cfg.App.Mode == "api" {
 		// 仅API模式
-		router = routes.SetupAPIRoutes(moduleService, dashboardService, configService, userService, jwtService, sessionManager, cronScheduler)
+		router = routes.SetupAPIRoutes(moduleService, dashboardService, configService, userService, jwtService, sessionManager)
 		log.Println("运行模式: API Only")
 	} else {
 		// 完整模式 (API + Web界面)
-		router = routes.SetupRoutes(moduleService, dashboardService, configService, userService, jwtService, sessionManager, cronScheduler)
+		router = routes.SetupRoutes(moduleService, dashboardService, configService, userService, jwtService, sessionManager)
 		log.Println("运行模式: Full Stack")
 	}
 
@@ -166,9 +160,6 @@ func main() {
 
 	// 启动后台任务
 	startBackgroundTasks(moduleService, cfg)
-
-	// 在服务关闭时停止调度器
-	defer cronScheduler.Stop()
 
 	// 等待中断信号
 	quit := make(chan os.Signal, 1)

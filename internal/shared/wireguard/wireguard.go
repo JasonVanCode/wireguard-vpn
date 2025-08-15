@@ -64,14 +64,8 @@ func GenerateModuleConfigWithLocalIP(module *models.Module, wgInterface *models.
 PrivateKey = %s
 Address = %s/32`, module.PrivateKey, module.IPAddress)
 
-	// 使用DNS配置或默认值
-	dnsToUse := dns
-	if dnsToUse == "" {
-		dnsToUse = GetDefaultDNS()
-	}
-	if dnsToUse != "" {
-		config += fmt.Sprintf("\nDNS = %s", dnsToUse)
-	}
+	// 根据用户成功配置，不添加DNS字段
+	// 用户反馈：不需要配置DNS，保持配置简洁
 
 	// 确定模块的内网IP（模块在内网的IP地址）
 	var finalLocalIP string
@@ -108,6 +102,7 @@ Address = %s/32`, module.PrivateKey, module.IPAddress)
 	}
 
 	// 添加NAT转发规则，实现内网穿透
+	// 参考用户成功配置：使用SNAT规则，源地址是VPN网段，目标地址是模块内网IP
 	config += fmt.Sprintf(`
 # NAT转发规则 - 实现内网穿透功能
 # 参考用户成功配置，添加SNAT规则
@@ -117,19 +112,8 @@ PostDown = iptables -t nat -D POSTROUTING -s %s -j SNAT --to-source %s`,
 		wgInterface.Network, finalLocalIP)
 
 	// 根据用户成功配置的模式设置AllowedIPs
-	// 参考：AllowedIPs = 10.0.8.0/24 (整个VPN网段，实现VPN内部互通)
-	allowedIPs := wgInterface.Network // 使用接口的整个网络段
-
-	// 如果模块配置了额外的内网访问权限，添加到AllowedIPs中
-	if module.AllowedIPs != "" {
-		if !IsDefaultInternalNetwork(module.AllowedIPs) {
-			// 自定义内网段，添加到VPN网段后面
-			allowedIPs += fmt.Sprintf(", %s", module.AllowedIPs)
-		} else {
-			// 默认内网段，也添加进去
-			allowedIPs += fmt.Sprintf(", %s", GetDefaultInternalNetwork())
-		}
-	}
+	// 参考：AllowedIPs = 10.10.0.0/24 (整个VPN网段，实现VPN内部互通)
+	allowedIPs := wgInterface.Network // 使用接口的整个网络段，如 10.10.0.0/24
 
 	config += fmt.Sprintf(`
 
@@ -193,21 +177,8 @@ PostDown = iptables -t nat -D POSTROUTING -s %s -o %s -j MASQUERADE; iptables -D
 
 `, serverPrivateKey, serverIP, port, vpnNetwork, externalInterface, port, interfaceName, interfaceName, vpnNetwork, externalInterface, port, interfaceName, interfaceName)
 
-	// 收集所有需要内网穿透的网段
-	internalNetworks := make(map[string]bool)
-	for _, module := range modules {
-		if module.AllowedIPs != "" && !IsDefaultInternalNetwork(module.AllowedIPs) && module.AllowedIPs != vpnNetwork {
-			internalNetworks[module.AllowedIPs] = true
-		}
-	}
-
-	// 为每个内网段添加FORWARD规则
-	for network := range internalNetworks {
-		config += fmt.Sprintf("PostUp = iptables -I FORWARD -s %s -i %s -d %s -j ACCEPT\n", vpnNetwork, interfaceName, network)
-		config += fmt.Sprintf("PostUp = iptables -I FORWARD -s %s -i %s -d %s -j ACCEPT\n", network, interfaceName, vpnNetwork)
-		config += fmt.Sprintf("PostDown = iptables -D FORWARD -s %s -i %s -d %s -j ACCEPT\n", vpnNetwork, interfaceName, network)
-		config += fmt.Sprintf("PostDown = iptables -D FORWARD -s %s -i %s -d %s -j ACCEPT\n", network, interfaceName, vpnNetwork)
-	}
+	// 注意：不再自动生成硬编码的iptables规则
+	// 用户反馈：这些规则不够灵活，应该由用户自定义或使用默认规则
 
 	config += "\n"
 

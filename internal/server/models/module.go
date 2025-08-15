@@ -31,9 +31,11 @@ type Module struct {
 	AllowedIPs   string `json:"allowed_ips" gorm:"default:'192.168.1.0/24'"`
 	PersistentKA int    `json:"persistent_keepalive" gorm:"default:25"`
 	PresharedKey string `json:"preshared_key" gorm:"size:44"` // 预共享密钥，增强安全性
+	Endpoint     string `json:"endpoint" gorm:"size:100"`     // 服务端端点（公网IP:端口）
 
 	// 关联
 	Interface *WireGuardInterface `json:"interface,omitempty" gorm:"foreignKey:InterfaceID"`
+	UserVPNs  []UserVPN           `json:"user_vpns,omitempty" gorm:"foreignKey:ModuleID"`
 }
 
 // ModuleStatus 模块状态枚举

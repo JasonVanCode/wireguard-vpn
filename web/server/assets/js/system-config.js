@@ -42,8 +42,8 @@ async function showWireGuardConfig() {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        // 获取接口统计信息
-        const interfaceStatsResponse = await fetch('/api/v1/interfaces/stats', {
+        // 获取带状态的接口信息
+        const interfaceStatsResponse = await fetch('/api/v1/system/wireguard-interfaces', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -51,7 +51,15 @@ async function showWireGuardConfig() {
             const configResult = await configResponse.json();
             const interfaceStatsResult = await interfaceStatsResponse.json();
             const config = configResult.data;
-            const interfaceStats = interfaceStatsResult.data;
+            const interfaces = interfaceStatsResult.data || [];
+            
+            // 计算统计信息
+            const interfaceStats = {
+                total_interfaces: interfaces.length,
+                active_interfaces: interfaces.filter(iface => iface.status === 1).length,
+                total_capacity: interfaces.reduce((sum, iface) => sum + (iface.max_peers || 0), 0),
+                used_capacity: interfaces.reduce((sum, iface) => sum + (iface.total_peers || 0), 0)
+            };
             
             let content = `
                 <!-- 系统状态概览 -->

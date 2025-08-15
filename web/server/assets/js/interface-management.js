@@ -37,7 +37,7 @@ async function showInterfaceManager() {
     
     try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/interfaces', {
+        const response = await fetch('/api/v1/system/wireguard-interfaces', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -88,33 +88,55 @@ async function showInterfaceManager() {
                     let statusClass = 'secondary';
                     let statusText = '未知';
                     let statusIcon = 'fas fa-question-circle';
+                    let wgPrefix = '';
                     
-                    switch (iface.status) {
-                        case 0: // Down
-                            statusClass = 'secondary';
-                            statusText = '已停止';
-                            statusIcon = 'fas fa-stop-circle';
-                            break;
-                        case 1: // Up
+                    // 使用实时WireGuard状态
+                    if (iface.is_active !== undefined) {
+                        if (iface.is_active) {
                             statusClass = 'success';
-                            statusText = '运行中';
+                            statusText = '[接口] 运行中';
                             statusIcon = 'fas fa-play-circle';
-                            break;
-                        case 2: // Error
-                            statusClass = 'danger';
-                            statusText = '错误';
-                            statusIcon = 'fas fa-exclamation-circle';
-                            break;
-                        case 3: // Starting
+                        } else {
+                            statusClass = 'secondary';
+                            statusText = '[接口] 未运行';
+                            statusIcon = 'fas fa-stop-circle';
+                        }
+                        
+                        // 检查配置文件状态
+                        if (!iface.config_exists) {
                             statusClass = 'warning';
-                            statusText = '启动中';
-                            statusIcon = 'fas fa-spinner fa-spin';
-                            break;
-                        case 4: // Stopping
-                            statusClass = 'warning';
-                            statusText = '停止中';
-                            statusIcon = 'fas fa-spinner fa-spin';
-                            break;
+                            statusText = '[接口] 配置缺失';
+                            statusIcon = 'fas fa-exclamation-triangle';
+                        }
+                    } else {
+                        // 降级到数据库状态 (兼容性)
+                        switch (iface.status) {
+                            case 0: // Down
+                                statusClass = 'secondary';
+                                statusText = '已停止';
+                                statusIcon = 'fas fa-stop-circle';
+                                break;
+                            case 1: // Up
+                                statusClass = 'success';
+                                statusText = '运行中';
+                                statusIcon = 'fas fa-play-circle';
+                                break;
+                            case 2: // Error
+                                statusClass = 'danger';
+                                statusText = '错误';
+                                statusIcon = 'fas fa-exclamation-circle';
+                                break;
+                            case 3: // Starting
+                                statusClass = 'warning';
+                                statusText = '启动中';
+                                statusIcon = 'fas fa-spinner fa-spin';
+                                break;
+                            case 4: // Stopping
+                                statusClass = 'warning';
+                                statusText = '停止中';
+                                statusIcon = 'fas fa-spinner fa-spin';
+                                break;
+                        }
                     }
                     
                     content += `
@@ -136,19 +158,22 @@ async function showInterfaceManager() {
                                 <span style="background: rgba(15, 23, 42, 0.8); color: #34d399; padding: 4px 8px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; font-weight: 500;">${iface.network}</span>
                             </td>
                             <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">${iface.listen_port}</td>
-                            <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">${iface.total_peers || 0}/${iface.max_peers || 0}</td>
+                            <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">
+                                ${iface.peer_count !== undefined ? `[实时] ${iface.active_peers || 0}/${iface.peer_count || 0}` : `${iface.total_peers || 0}/${iface.max_peers || 0}`}
+                            </td>
                             <td style="border: none; padding: 12px 16px;">
                                 <div style="display: flex; gap: 0.25rem;">
                     `;
                     
-                    // 根据状态显示不同的操作按钮
-                    if (iface.status === 1) { // 运行中
+                    // 根据实时状态显示不同的操作按钮
+                    const isRunning = iface.is_active !== undefined ? iface.is_active : (iface.status === 1);
+                    if (isRunning) { // 运行中
                         content += `
                             <button class="btn btn-sm btn-outline-warning" onclick="stopInterface(${iface.id})" title="停止接口">
                                 <i class="fas fa-stop"></i>
                             </button>
                         `;
-                    } else if (iface.status === 0) { // 已停止
+                    } else { // 已停止
                         content += `
                             <button class="btn btn-sm btn-outline-success" onclick="startInterface(${iface.id})" title="启动接口">
                                 <i class="fas fa-play"></i>
@@ -236,13 +261,13 @@ function showCreateInterfaceModal() {
 async function suggestInterfaceConfig() {
     try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/interfaces/stats', {
+        const response = await fetch('/api/v1/system/wireguard-interfaces', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (response.ok) {
             const result = await response.json();
-            const interfaces = result.data.interfaces;
+            const interfaces = result.data || result;
             
             // 建议下一个接口名称
             const existingNames = interfaces.map(iface => iface.name);
@@ -350,6 +375,7 @@ function updateInterfaceConfigPreview() {
     const name = document.getElementById('interfaceName')?.value || 'wgX';
     const network = document.getElementById('interfaceNetwork')?.value || '10.50.0.0/24';
     const port = document.getElementById('interfacePort')?.value || '51824';
+    const networkInterface = document.getElementById('interfaceNetworkInterface')?.value || 'eth0';
     
     const previewDiv = document.getElementById('interfaceConfigPreview');
     if (previewDiv) {
@@ -358,8 +384,8 @@ Address = ${network.replace(/0\/24$/, '1/24')}
 ListenPort = ${port}
 MTU = 1420
 SaveConfig = true
-PostUp = iptables -t nat -A POSTROUTING -s ${network} -o eth0 -j MASQUERADE; iptables -A INPUT -p udp -m udp --dport ${port} -j ACCEPT; iptables -I FORWARD 1 -i ${name} -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -s ${network} -o eth0 -j MASQUERADE; iptables -D INPUT -p udp -m udp --dport ${port} -j ACCEPT; iptables -D FORWARD -i ${name} -j ACCEPT
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${networkInterface} -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${networkInterface} -j MASQUERADE
 PrivateKey = [自动生成]
 
 # 模块端和客户端将通过配置自动添加为 [Peer] 段`;
@@ -411,6 +437,7 @@ async function submitCreateInterface() {
     // 根据配置文档生成PostUp和PostDown规则
     const networkCIDR = network.trim();
     const interfaceName = name.trim();
+    const networkInterface = formData.get('network_interface') || 'eth0';
     
     // 构建请求数据 - 参考配置文档的服务端配置
     const interfaceData = {
@@ -421,10 +448,11 @@ async function submitCreateInterface() {
         dns: formData.get('dns') || '8.8.8.8,8.8.4.4',
         max_peers: parseInt(formData.get('max_peers')) || 50,
         mtu: parseInt(formData.get('mtu')) || 1420,
-        // 根据配置文档生成标准的PostUp规则
-        post_up: formData.get('post_up') || `iptables -t nat -A POSTROUTING -s ${networkCIDR} -o eth0 -j MASQUERADE; iptables -A INPUT -p udp -m udp --dport ${port} -j ACCEPT; iptables -I FORWARD 1 -i ${interfaceName} -j ACCEPT`,
-        // 根据配置文档生成标准的PostDown规则（自动生成，因为表单中没有这个字段）
-        post_down: `iptables -t nat -D POSTROUTING -s ${networkCIDR} -o eth0 -j MASQUERADE; iptables -D INPUT -p udp -m udp --dport ${port} -j ACCEPT; iptables -D FORWARD -i ${interfaceName} -j ACCEPT`,
+        network_interface: networkInterface.trim(),
+        // 使用验证成功的规则格式：简洁且使用%i占位符，动态网络接口
+        post_up: formData.get('post_up') || `iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${networkInterface} -j MASQUERADE`,
+        // 对应的清理规则
+        post_down: `iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${networkInterface} -j MASQUERADE`,
         auto_start: document.getElementById('autoStartInterface') ? document.getElementById('autoStartInterface').checked : false
     };
     
@@ -689,6 +717,80 @@ async function downloadInterfaceConfig(interfaceId) {
     }
 }
 
+// 处理网络接口预设按钮点击
+function handleInterfacePresetClick(event) {
+    if (event.target.classList.contains('interface-preset')) {
+        const interfaceName = event.target.getAttribute('data-interface');
+        const input = document.getElementById('interfaceNetworkInterface');
+        if (input) {
+            input.value = interfaceName;
+            // 更新预览
+            updateInterfaceConfigPreview();
+        }
+    }
+}
+
+// 自动检测网络接口
+async function detectNetworkInterface() {
+    try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch('/api/v1/system/network-interfaces', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data && data.data.length > 0) {
+                // 优先选择默认路由的接口
+                const defaultInterface = data.data.find(iface => iface.is_default) || data.data[0];
+                const input = document.getElementById('interfaceNetworkInterface');
+                if (input) {
+                    input.value = defaultInterface.name;
+                    updateInterfaceConfigPreview();
+                    
+                    // 显示检测结果
+                    alert(`已检测到网络接口：${defaultInterface.name}`);
+                }
+            } else {
+                alert('未检测到可用的网络接口，请手动输入');
+            }
+        } else {
+            alert('检测网络接口失败，请手动输入');
+        }
+    } catch (error) {
+        console.error('检测网络接口时出错:', error);
+        alert('检测网络接口失败，请手动输入');
+    }
+}
+
+// 初始化网络接口相关事件监听器
+function initNetworkInterfaceHandlers() {
+    // 预设按钮点击事件
+    document.addEventListener('click', handleInterfacePresetClick);
+    
+    // 自动检测按钮点击事件
+    const detectButton = document.getElementById('detectNetworkInterface');
+    if (detectButton) {
+        detectButton.addEventListener('click', detectNetworkInterface);
+    }
+    
+    // 网络接口输入变化时更新预览
+    const interfaceInput = document.getElementById('interfaceNetworkInterface');
+    if (interfaceInput) {
+        interfaceInput.addEventListener('input', updateInterfaceConfigPreview);
+    }
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 延迟初始化，确保DOM完全加载
+    setTimeout(initNetworkInterfaceHandlers, 100);
+});
+
 // 全局导出接口管理函数
 window.showInterfaceManager = showInterfaceManager;
 window.showCreateInterfaceModal = showCreateInterfaceModal;
@@ -701,3 +803,472 @@ window.stopInterface = stopInterface;
 window.deleteInterface = deleteInterface;
 window.showInterfaceConfig = showInterfaceConfig;
 window.downloadInterfaceConfig = downloadInterfaceConfig; 
+
+// =====================================================
+// 接口-模块卡片网格渲染
+// =====================================================
+
+// 渲染接口-模块卡片网格
+async function renderInterfaceModuleGrid() {
+    const gridContainer = document.getElementById('interfaceModuleGrid');
+    if (!gridContainer) {
+        console.error('找不到 interfaceModuleGrid 元素');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('access_token');
+        
+        // 获取带状态的接口数据（包含模块信息）
+        const interfacesResponse = await fetch('/api/v1/system/wireguard-interfaces', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!interfacesResponse.ok) {
+            throw new Error('获取接口数据失败');
+        }
+        
+        const interfaces = (await interfacesResponse.json()).data || [];
+        // 从接口数据中提取模块信息
+        const modules = [];
+        interfaces.forEach(iface => {
+            if (iface.modules && Array.isArray(iface.modules)) {
+                modules.push(...iface.modules);
+            }
+        });
+        
+        renderGridWithData(interfaces, modules);
+        
+    } catch (error) {
+        console.error('渲染接口-模块网格失败:', error);
+        
+        // 如果API调用失败，尝试使用演示数据
+        if (typeof generateDemoData === 'function') {
+            console.log('使用演示数据展示布局效果');
+            const demoData = generateDemoData();
+            renderGridWithData(demoData.interfaces, demoData.modules);
+        } else {
+            gridContainer.innerHTML = `
+                <div class="empty-interface">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h4>加载失败</h4>
+                    <p>无法加载接口和模块信息，请检查网络连接</p>
+                    <button class="card-action-btn primary" onclick="renderInterfaceModuleGrid()">
+                        <i class="fas fa-sync-alt"></i> 重试
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// 使用数据渲染网格
+function renderGridWithData(interfaces, modules) {
+    const gridContainer = document.getElementById('interfaceModuleGrid');
+    
+    // 创建接口到模块的映射
+    const interfaceModuleMap = new Map();
+    interfaces.forEach(iface => {
+        interfaceModuleMap.set(iface.id, {
+            interface: iface,
+            modules: modules.filter(module => module.interface_id === iface.id)
+        });
+    });
+    
+    // 渲染卡片网格
+    if (interfaceModuleMap.size === 0) {
+        gridContainer.innerHTML = `
+            <div class="empty-interface">
+                <i class="fas fa-network-wired"></i>
+                <h4>暂无WireGuard接口</h4>
+                <p>创建第一个接口来开始管理您的VPN网络</p>
+                <button class="card-action-btn primary" onclick="showCreateInterfaceModal()">
+                    <i class="fas fa-plus"></i> 创建接口
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let gridHTML = '';
+    interfaceModuleMap.forEach((data, interfaceId) => {
+        const { interface: iface, modules: ifaceModules } = data;
+        gridHTML += renderInterfaceModuleCard(iface, ifaceModules);
+    });
+    
+    gridContainer.innerHTML = gridHTML;
+    
+    // 绑定事件监听器
+    bindCardEventListeners();
+}
+
+// 渲染单个接口-模块卡片
+function renderInterfaceModuleCard(iface, modules) {
+    // 使用实时WireGuard状态（后端已加WG前缀）
+    let statusClass, statusText, statusIcon;
+    
+    if (iface.is_active !== undefined) {
+        if (iface.is_active) {
+            statusClass = 'running';
+            statusText = '[接口] 运行中';
+            statusIcon = 'fas fa-play-circle';
+        } else {
+            statusClass = 'stopped';
+            statusText = '[接口] 未运行';
+            statusIcon = 'fas fa-stop-circle';
+        }
+        
+        if (!iface.config_exists) {
+            statusClass = 'error';
+            statusText = '[接口] 配置缺失';
+            statusIcon = 'fas fa-exclamation-triangle';
+        }
+    } else {
+        // 降级到原来的逻辑
+        statusClass = getInterfaceStatusClass(iface.status);
+        statusText = getInterfaceStatusText(iface.status);
+        statusIcon = getInterfaceStatusIcon(iface.status);
+    }
+    
+    let modulesHTML = '';
+    if (modules.length === 0) {
+        modulesHTML = `
+            <div class="module-section">
+                <div class="module-header">
+                    <div class="module-title">
+                        <i class="fas fa-server"></i>
+                        未分配模块
+                    </div>
+                    <div class="module-status unknown">无模块</div>
+                </div>
+                <div class="module-details">
+                    <div class="module-detail-item">
+                        <div class="module-detail-label">状态</div>
+                        <div class="module-detail-value">等待分配</div>
+                    </div>
+                    <div class="module-detail-item">
+                        <div class="module-detail-label">用户数</div>
+                        <div class="module-detail-value">0</div>
+                    </div>
+                </div>
+                <div class="user-stats">
+                    <div class="user-count">
+                        <i class="fas fa-users"></i>
+                        <span class="user-count-text">0 个用户</span>
+                    </div>
+                    <div class="user-actions">
+                        <button class="card-action-btn primary compact" onclick="showAddModuleModal()" title="添加模块">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        modules.forEach(module => {
+            // 使用实时WireGuard模块状态（后端已加WG前缀）
+            let moduleStatusClass, moduleStatusText, moduleStatusIcon;
+            
+            if (module.is_online !== undefined) {
+                if (module.is_online) {
+                    moduleStatusClass = 'online';
+                    moduleStatusText = '[模块] 在线';
+                    moduleStatusIcon = 'fas fa-circle';
+                } else {
+                    moduleStatusClass = 'offline';
+                    moduleStatusText = '[模块] 离线';
+                    moduleStatusIcon = 'fas fa-circle';
+                }
+            } else {
+                // 降级到数据库状态
+                moduleStatusClass = getModuleStatusClass(module.status);
+                moduleStatusText = getModuleStatusText(module.status);
+                moduleStatusIcon = getModuleStatusIcon(module.status);
+            }
+            
+            modulesHTML += `
+                <div class="module-section">
+                    <div class="module-header">
+                        <div class="module-title">
+                            <i class="fas fa-server"></i>
+                            ${module.name}
+                        </div>
+                        <div class="module-status-actions" style="display: flex; align-items: center; justify-content: space-between;">
+                            <div class="module-status ${moduleStatusClass}">
+                                <i class="${moduleStatusIcon}"></i>
+                                ${moduleStatusText}
+                            </div>
+                            <div class="module-quick-actions" style="display: flex; gap: 4px;">
+                                <button class="btn btn-xs btn-outline-primary" onclick="showAddUserModal(${module.id})" title="添加用户" style="padding: 2px 6px; font-size: 10px; border-radius: 3px;">
+                                    <i class="fas fa-user-plus"></i>
+                                </button>
+                                <button class="btn btn-xs btn-outline-info" onclick="downloadModuleConfig(${module.id})" title="下载模块配置" style="padding: 2px 6px; font-size: 10px; border-radius: 3px;">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-details">
+                        <div class="module-detail-item">
+                            <div class="module-detail-label">位置</div>
+                            <div class="module-detail-value">${module.location || '未知'}</div>
+                        </div>
+                        <div class="module-detail-item">
+                            <div class="module-detail-label">WireGuard IP</div>
+                            <div class="module-detail-value">${module.ip_address || '未分配'}</div>
+                        </div>
+                        <div class="module-detail-item">
+                            <div class="module-detail-label">内网IP</div>
+                            <div class="module-detail-value">${module.local_ip || '未配置'}</div>
+                        </div>
+
+                        <div class="module-detail-item">
+                            <div class="module-detail-label">最后心跳</div>
+                            <div class="module-detail-value">${formatLastHeartbeat(module.last_heartbeat)}</div>
+                        </div>
+                        <div class="module-detail-item">
+                            <div class="module-detail-label">流量</div>
+                            <div class="module-detail-value">${formatTraffic(module.total_rx_bytes, module.total_tx_bytes)}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 模块用户标题移到外面 -->
+                    <div class="user-section-title" style="display: flex; align-items: center; margin-top: 12px; margin-bottom: 8px; color: #f1f5f9; font-weight: 600; font-size: 12px;">
+                        <i class="fas fa-users" style="margin-right: 8px; color: #60a5fa; font-size: 14px;"></i>
+                        <span>模块用户: ${module.users ? module.users.length : 0}个</span>
+                        ${module.users && module.users.length > 0 ? `
+                            <span style="margin-left: 12px; color: #94a3b8; font-size: 11px;">
+                                (${module.users.filter(u => u.is_active).length}个在线)
+                            </span>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="user-stats">
+                        ${module.users && module.users.length > 0 ? `
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
+                                ${module.users.map((user, index) => `
+                                    <div class="user-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(15, 23, 42, 0.6); border-radius: 6px; font-size: 11px; border: 1px solid rgba(30, 41, 59, 0.6); box-sizing: border-box;">
+                                        <div class="user-info" style="display: flex; flex-direction: column; flex: 1; min-width: 0; margin-right: 8px;">
+                                            <div class="user-name" style="color: #f1f5f9; font-weight: 500; margin-bottom: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                ${user.username || '未知用户'}
+                                            </div>
+                                            <div class="user-details" style="display: flex; flex-direction: column; gap: 2px; color: #94a3b8; font-size: 10px;">
+                                                <span class="user-status">
+                                                    状态: <span style="color: ${user.is_active ? '#10b981' : '#6b7280'}; font-weight: 500;">${user.is_active ? '在线' : '离线'}</span>
+                                                </span>
+                                                <span class="user-ip">
+                                                    IP: <span style="color: #34d399; font-family: monospace; font-weight: 500;">${user.ip_address || '未分配'}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="user-actions" style="display: flex; gap: 4px; flex-shrink: 0;">
+                                            <button class="btn btn-xs btn-outline-info" onclick="downloadUserConfig(${user.id})" title="下载 ${user.username} 的配置" style="padding: 4px 8px; font-size: 9px; border-radius: 3px;">
+                                                <i class="fas fa-download"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div class="user-section-title" style="display: flex; align-items: center; margin-bottom: 8px; color: #f1f5f9; font-weight: 600; font-size: 12px;">
+                                <i class="fas fa-users" style="margin-right: 6px; color: #60a5fa;"></i>
+                                模块用户 (0个)
+                            </div>
+                            <div class="no-users" style="background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 16px; text-align: center; width: 100%; border: 1px solid rgba(30, 41, 59, 0.6);">
+                                <div style="color: #94a3b8; font-size: 11px; margin-bottom: 10px;">
+                                    <i class="fas fa-user-plus" style="margin-right: 6px;"></i>
+                                    该模块暂无用户
+                                </div>
+                                <button class="btn btn-xs btn-outline-primary" onclick="showAddUserModal(${module.id})" style="padding: 6px 12px; font-size: 10px;">
+                                    <i class="fas fa-plus me-1"></i>添加用户
+                                </button>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    return `
+        <div class="interface-module-card" data-interface-id="${iface.id}">
+            <!-- 接口头部 -->
+            <div class="interface-header">
+                <div class="interface-title">
+                    <i class="fas fa-ethernet"></i>
+                    ${iface.name}
+                </div>
+                <div class="interface-status ${statusClass}">
+                    <i class="${statusIcon}"></i>
+                    ${statusText}
+                </div>
+            </div>
+            
+            <!-- 接口详情 -->
+            <div class="interface-details">
+                <div class="interface-detail-item">
+                    <div class="interface-detail-label">网络段</div>
+                    <div class="interface-detail-value">${iface.network || '未配置'}</div>
+                </div>
+                <div class="interface-detail-item">
+                    <div class="interface-detail-label">监听端口</div>
+                    <div class="interface-detail-value">${iface.listen_port || '未配置'}</div>
+                </div>
+                <div class="interface-detail-item">
+                    <div class="interface-detail-label">连接数</div>
+                    <div class="interface-detail-value">
+                        ${iface.peer_count !== undefined ? 
+                            `[实时] ${iface.active_peers || 0}/${iface.peer_count || 0}` : 
+                            `${iface.total_peers || 0}/${iface.max_peers || 0}`}
+                    </div>
+                </div>
+                <div class="interface-detail-item">
+                    <div class="interface-detail-label">描述</div>
+                    <div class="interface-detail-value">${iface.description || '无描述'}</div>
+                </div>
+            </div>
+            
+            <!-- 模块信息 -->
+            ${modulesHTML}
+            
+            <!-- 操作按钮 -->
+            <div class="card-actions">
+                <button class="card-action-btn" onclick="showInterfaceConfig(${iface.id})">
+                    <i class="fas fa-cog"></i> 配置
+                </button>
+                <button class="card-action-btn" onclick="showInterfaceManager()">
+                    <i class="fas fa-tools"></i> 管理
+                </button>
+                ${(iface.is_active !== undefined ? iface.is_active : (iface.status === 1)) ? 
+                    `<button class="card-action-btn danger" onclick="stopInterface(${iface.id})">
+                        <i class="fas fa-stop"></i> 停止
+                    </button>` :
+                    `<button class="card-action-btn primary" onclick="startInterface(${iface.id})">
+                        <i class="fas fa-play"></i> 启动
+                    </button>`
+                }
+                <button class="card-action-btn danger" onclick="deleteInterface(${iface.id})">
+                    <i class="fas fa-trash"></i> 删除
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// 获取接口状态样式类
+function getInterfaceStatusClass(status) {
+    switch (status) {
+        case 1: return 'running';
+        case 2: return 'running'; // 2 也表示运行中
+        case 0: return 'stopped';
+        default: return 'error';
+    }
+}
+
+// 获取接口状态文本
+function getInterfaceStatusText(status) {
+    switch (status) {
+        case 1: return '运行中';
+        case 2: return '运行中'; // 2 也表示运行中
+        case 0: return '已停止';
+        default: return '错误';
+    }
+}
+
+// 获取接口状态图标
+function getInterfaceStatusIcon(status) {
+    switch (status) {
+        case 1: return 'fas fa-play-circle';
+        case 2: return 'fas fa-play-circle'; // 2 也表示运行中
+        case 0: return 'fas fa-stop-circle';
+        default: return 'fas fa-exclamation-triangle';
+    }
+}
+
+// 获取模块状态样式类
+function getModuleStatusClass(status) {
+    switch (status) {
+        case 1: return 'online';
+        case 0: return 'offline';
+        default: return 'unknown';
+    }
+}
+
+// 获取模块状态文本
+function getModuleStatusText(status) {
+    switch (status) {
+        case 1: return '在线';
+        case 0: return '离线';
+        default: return '未知';
+    }
+}
+
+// 获取模块状态图标
+function getModuleStatusIcon(status) {
+    switch (status) {
+        case 1: return 'fas fa-circle';
+        case 0: return 'fas fa-circle';
+        default: return 'fas fa-question-circle';
+    }
+}
+
+// 格式化最后心跳时间
+function formatLastHeartbeat(timestamp) {
+    if (!timestamp) return '从未';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+    return `${Math.floor(diff / 86400000)}天前`;
+}
+
+// 格式化流量
+function formatTraffic(inBytes, outBytes) {
+    const inMB = (inBytes || 0) / (1024 * 1024);
+    const outMB = (outBytes || 0) / (1024 * 1024);
+    return `${inMB.toFixed(1)}MB / ${outMB.toFixed(1)}MB`;
+}
+
+// 格式化模块用户信息
+function formatModuleUsers(module) {
+    if (!module.users || module.users.length === 0) {
+        return '无用户';
+    }
+    
+    const userInfo = module.users.slice(0, 2).map(user => {
+        const statusIcon = user.is_active ? '🟢' : '🔘';
+        const name = user.username || user.email || '未知用户';
+        const ip = user.ip_address ? ` (${user.ip_address})` : '';
+        return `${statusIcon} ${name}${ip}`;
+    });
+    
+    const displayInfo = userInfo.join(', ');
+    const moreCount = module.users.length > 2 ? ` +${module.users.length - 2}更多` : '';
+    
+    return `${displayInfo}${moreCount}`;
+}
+
+// 绑定卡片事件监听器
+function bindCardEventListeners() {
+    // 这里可以添加卡片相关的交互事件
+    console.log('接口-模块卡片事件监听器已绑定');
+}
+
+// 刷新接口-模块网格
+function refreshInterfaceModuleGrid() {
+    renderInterfaceModuleGrid();
+}
+
+// 绑定卡片事件监听器
+function bindCardEventListeners() {
+    // 这里可以添加卡片相关的交互事件
+    console.log('接口-模块卡片事件监听器已绑定');
+}
+
+// 全局导出接口-模块网格函数
+window.renderInterfaceModuleGrid = renderInterfaceModuleGrid;
+window.refreshInterfaceModuleGrid = refreshInterfaceModuleGrid; 

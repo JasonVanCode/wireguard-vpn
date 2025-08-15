@@ -105,6 +105,11 @@ type ModuleListInfo struct {
 	TotalTx      uint64    `json:"total_tx"`
 	TotalTraffic uint64    `json:"total_traffic"`
 	CreatedAt    time.Time `json:"created_at"`
+
+	// 接口信息
+	InterfaceID   uint   `json:"interface_id"`
+	InterfaceName string `json:"interface_name"`
+	Network       string `json:"network"`
 }
 
 // GetDashboardStats 获取仪表盘统计数据
@@ -526,7 +531,7 @@ func (ds *DashboardService) checkIPPoolStatus() HealthCheck {
 // getModuleList 获取模块列表
 func (ds *DashboardService) getModuleList(limit int) ([]ModuleListInfo, error) {
 	var modules []models.Module
-	if err := ds.db.Order("last_seen DESC").Limit(limit).Find(&modules).Error; err != nil {
+	if err := ds.db.Preload("Interface").Order("last_seen DESC").Limit(limit).Find(&modules).Error; err != nil {
 		return nil, fmt.Errorf("查询模块列表失败: %w", err)
 	}
 
@@ -535,6 +540,14 @@ func (ds *DashboardService) getModuleList(limit int) ([]ModuleListInfo, error) {
 		lastSeen := time.Time{}
 		if module.LastSeen != nil {
 			lastSeen = *module.LastSeen
+		}
+
+		// 获取接口信息
+		interfaceName := ""
+		network := ""
+		if module.Interface != nil {
+			interfaceName = module.Interface.Name
+			network = module.Interface.Network
 		}
 
 		moduleList = append(moduleList, ModuleListInfo{
@@ -548,6 +561,11 @@ func (ds *DashboardService) getModuleList(limit int) ([]ModuleListInfo, error) {
 			TotalTx:      module.TotalTxBytes,
 			TotalTraffic: module.TotalRxBytes + module.TotalTxBytes,
 			CreatedAt:    module.CreatedAt,
+
+			// 接口信息
+			InterfaceID:   module.InterfaceID,
+			InterfaceName: interfaceName,
+			Network:       network,
 		})
 	}
 

@@ -73,30 +73,38 @@ func (uvs *UserVPNService) CreateUserVPN(config *models.UserVPNConfig) (*models.
 		return nil, fmt.Errorf("分配IP地址失败: %w", err)
 	}
 
-	// 设置默认值
+	// 智能生成AllowedIPs - 参考用户成功配置
 	allowedIPs := config.AllowedIPs
 	fmt.Printf("🔍 [AllowedIPs生成] 开始生成用户VPN AllowedIPs\n")
 	fmt.Printf("🔍 [AllowedIPs生成] 用户传入的AllowedIPs: '%s'\n", config.AllowedIPs)
 	fmt.Printf("🔍 [AllowedIPs生成] 接口网段(wgInterface.Network): '%s'\n", wgInterface.Network)
 	fmt.Printf("🔍 [AllowedIPs生成] 模块内网段(module.AllowedIPs): '%s'\n", module.AllowedIPs)
 
+	// 参考用户成功配置：AllowedIPs = 10.10.0.0/24, 192.168.50.0/24
 	if allowedIPs == "" || allowedIPs == "0.0.0.0/0" {
-		fmt.Printf("🔍 [AllowedIPs生成] 用户未指定AllowedIPs或使用默认全网访问，开始智能生成\n")
-		// 智能生成AllowedIPs：当前接口的VPN网段 + 模块配置的内网段
-		allowedIPs = wgInterface.Network // 首先添加VPN网段，如10.0.8.0/24
+		fmt.Printf("🔍 [AllowedIPs生成] 用户未指定AllowedIPs，开始智能生成\n")
+
+		// 1. 首先添加VPN网段（如：10.10.0.0/24）
+		allowedIPs = wgInterface.Network
 		fmt.Printf("🔍 [AllowedIPs生成] 添加VPN网段: '%s'\n", allowedIPs)
 
-		// 添加模块配置的内网段（从数据库中读取）
-		// 排除数据库默认值 "192.168.1.0/24"，因为这通常不是实际的内网段
+		// 2. 添加模块配置的内网段（如：192.168.50.0/24）
+		// 排除默认值，使用实际配置的内网段
 		if module.AllowedIPs != "" && module.AllowedIPs != "192.168.1.0/24" {
 			allowedIPs += fmt.Sprintf(", %s", module.AllowedIPs)
 			fmt.Printf("🔍 [AllowedIPs生成] 添加模块内网段，最终结果: '%s'\n", allowedIPs)
 		} else {
 			fmt.Printf("🔍 [AllowedIPs生成] 模块内网段为空或为默认值，跳过添加\n")
 		}
-		// 注意：如果模块没有配置有效的内网段，则只允许访问VPN网段
 	} else {
+		// 用户指定了AllowedIPs，验证格式
 		fmt.Printf("🔍 [AllowedIPs生成] 使用用户指定的AllowedIPs: '%s'\n", allowedIPs)
+
+		// 如果用户只指定了VPN网段，自动添加模块内网段
+		if allowedIPs == wgInterface.Network && module.AllowedIPs != "" && module.AllowedIPs != "192.168.1.0/24" {
+			allowedIPs += fmt.Sprintf(", %s", module.AllowedIPs)
+			fmt.Printf("🔍 [AllowedIPs生成] 自动补充模块内网段，最终结果: '%s'\n", allowedIPs)
+		}
 	}
 
 	fmt.Printf("🎯 [AllowedIPs生成] 最终生成的AllowedIPs: '%s'\n", allowedIPs)
@@ -210,16 +218,16 @@ func (uvs *UserVPNService) GenerateUserVPNConfig(id uint) (string, error) {
 		}
 	}
 
-	// 生成用户配置文件
+	// 生成用户配置文件 - 完全匹配用户成功配置模板
 	fmt.Printf("📄 [配置生成] 开始生成用户VPN配置文件\n")
 	fmt.Printf("📄 [配置生成] 用户ID: %d, 用户名: %s\n", id, userVPN.Username)
 	fmt.Printf("📄 [配置生成] 数据库中存储的AllowedIPs: '%s'\n", userVPN.AllowedIPs)
 	fmt.Printf("📄 [配置生成] 服务端点: %s\n", serverEndpoint)
 
+	// 参考用户成功配置：user-client.conf
 	config := fmt.Sprintf(`[Interface]
 PrivateKey = %s
 Address = %s/32
-DNS = %s
 
 [Peer]
 PublicKey = %s
@@ -229,7 +237,6 @@ AllowedIPs = %s
 PersistentKeepalive = %d`,
 		userVPN.PrivateKey,
 		userVPN.IPAddress,
-		wgInterface.DNS,
 		wgInterface.PublicKey,
 		userVPN.PresharedKey,
 		serverEndpoint,

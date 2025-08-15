@@ -18,7 +18,7 @@
 // - loadWireGuardInterfaces() - 加载可用接口列表
 // - downloadModuleConfig() - 下载模块配置文件
 // - deleteModule() - 删除指定模块
-// - updateModulesTable() - 更新模块列表显示
+// - updateModulesTable() - 刷新模块网格显示
 //
 // 📏 文件大小：12.3KB (原文件的 11.8%)
 // =====================================================
@@ -55,28 +55,31 @@ async function showAddModuleModal() {
     ModalManager.show(modalElement);
 }
 
-// 加载WireGuard接口列表
+// 加载WireGuard接口列表（使用带状态的接口API）
 async function loadWireGuardInterfaces() {
     try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/interfaces', {
+        const response = await fetch('/api/v1/system/wireguard-interfaces', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (response.ok) {
             const result = await response.json();
-            console.log('Interfaces loaded:', result);
+            console.log('Interfaces loaded (with status):', result);
             const interfaces = result.data || result.interfaces || [];
             const select = document.getElementById('moduleInterface');
             
             // 清空现有选项
             select.innerHTML = '<option value="">选择WireGuard接口</option>';
             
-            // 添加接口选项
+            // 添加接口选项（包含实时状态信息）
             interfaces.forEach(iface => {
                 const option = document.createElement('option');
                 option.value = iface.id;
-                option.textContent = `${iface.name} - ${iface.description} (${iface.network})`;
+                
+                // 显示接口状态信息
+                const statusText = iface.status === 1 ? '运行中' : '已停止';
+                option.textContent = `${iface.name} - ${iface.description} (${iface.network}) [${statusText}]`;
                 option.dataset.maxPeers = iface.max_peers;
                 option.dataset.totalPeers = iface.total_peers;
                 
@@ -91,7 +94,7 @@ async function loadWireGuardInterfaces() {
                 select.appendChild(option);
             });
             
-            console.log(`加载了 ${interfaces.length} 个接口`);
+            console.log(`加载了 ${interfaces.length} 个接口（包含状态信息）`);
         } else {
             console.error('加载接口列表失败:', response.status, response.statusText);
             const select = document.getElementById('moduleInterface');
@@ -127,11 +130,7 @@ async function submitAddModule() {
         interface_id: parseInt(formData.get('interface_id')),
         allowed_ips: allowedIPs,
         local_ip: formData.get('local_ip') || '', // 模块内网IP地址
-        persistent_keepalive: parseInt(formData.get('persistent_keepalive')) || 25,
-        dns: formData.get('dns') || '8.8.8.8,8.8.4.4',
-        auto_generate_keys: document.getElementById('autoGenerateKeys').checked,
-        auto_assign_ip: document.getElementById('autoAssignIP').checked,
-        config_template: formData.get('config_template') || 'default'
+        persistent_keepalive: parseInt(formData.get('persistent_keepalive')) || 25
     };
 
     console.log('提交的模块数据:', data);
@@ -201,7 +200,18 @@ async function downloadModuleConfig(id) {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `module_${id}_config.conf`;
+            
+            // 从响应头获取后端设置的文件名
+            let fileName = 'module_config.conf'; // 默认文件名
+            const contentDisposition = response.headers.get('Content-Disposition');
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    fileName = match[1].replace(/['"]/g, '');
+                }
+            }
+            
+            a.download = fileName;
             a.click();
             window.URL.revokeObjectURL(url);
         } else {
@@ -267,72 +277,20 @@ async function deleteModule(id) {
     }
 }
 
-// 更新模块表格
+// 刷新模块显示 - 使用新的网格布局
 function updateModulesTable(modules) {
-    const tbody = document.getElementById('modulesTableBody');
-    
-    // 清空现有内容
-    tbody.innerHTML = '';
-
-    // 检查数据状态
-    if (!modules) {
-        // 数据还在加载中
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        加载中...
-                    </div>
-                </td>
-            </tr>`;
-        return;
+    // 使用新的网格布局刷新
+    if (typeof refreshInterfaceModuleGrid === 'function') {
+        refreshInterfaceModuleGrid();
+    } else {
+        console.warn('refreshInterfaceModuleGrid 函数不可用');
     }
+}
 
-    if (modules.length === 0) {
-        // 数据为空
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
-                    <div style="opacity: 0.7;">
-                        <i class="fas fa-server" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                        <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">暂无模块数据</div>
-                        <div style="font-size: 0.9rem; opacity: 0.8;">
-                            <a href="#" onclick="showAddModuleModal()" style="color: var(--primary-color); text-decoration: none;">
-                                <i class="fas fa-plus me-1"></i>点击添加第一个模块
-                            </a>
-                        </div>
-                    </div>
-                </td>
-            </tr>`;
-        return;
-    }
-
-    // 渲染模块数据
-    modules.forEach(module => {
-        const row = tbody.insertRow();
-        row.innerHTML = `
-            <td style="font-weight: 600;">${module.name || '未知'}</td>
-            <td><span class="status-badge status-${getStatusClass(module.status)}">${getStatusText(module.status)}</span></td>
-            <td>${module.location || '--'}</td>
-            <td>${module.ip_address || '--'}</td>
-            <td>${formatDateTime(module.last_seen)}</td>
-            <td>${formatBytes(module.total_traffic || 0)}</td>
-            <td>
-                <div class="table-actions">
-                    <button class="btn btn-sm btn-outline-primary" onclick="downloadModuleConfig('${module.id}')" title="下载模块配置">
-                        <i class="fas fa-download"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-info" onclick="showModuleUsers('${module.id}')" title="管理用户">
-                        <i class="fas fa-users"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteModule('${module.id}')" title="删除模块">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-    });
+// 获取接口显示信息
+function getInterfaceDisplay(module) {
+    // 支持新的数据格式
+    return module.interface || module.interface_name || '--';
 }
 
 // 全局导出模块管理函数

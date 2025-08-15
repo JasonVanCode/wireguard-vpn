@@ -6,20 +6,7 @@ let isLoggedIn = false;
 // 全局配置
 const API_BASE_URL = '/api/v1';
 
-// 工具函数
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function formatDateTime(dateStr) {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleString('zh-CN');
-}
+// 工具函数已移动到shared-utils.js中统一管理
 
 // API 请求辅助函数
 async function apiRequest(url, options = {}) {

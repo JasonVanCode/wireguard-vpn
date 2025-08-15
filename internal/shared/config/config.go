@@ -10,6 +10,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// WireGuard 超时时间常量
+const (
+	// WireGuardOnlineTimeout WireGuard连接在线判断超时时间（2分钟）
+	WireGuardOnlineTimeout = 2 * time.Minute
+
+	// WireGuardOfflineTimeout WireGuard连接离线标记超时时间（2分钟）
+	WireGuardOfflineTimeout = 2 * time.Minute
+)
+
 // 全局配置变量
 var (
 	globalServerConfig *ServerConfig

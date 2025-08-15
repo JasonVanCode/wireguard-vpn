@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -158,9 +159,12 @@ func (h *UserVPNHandler) GenerateUserVPNConfig(c *gin.Context) {
 		return
 	}
 
-	filename := userVPN.Username + "_vpn_config.conf"
-	c.Header("Content-Disposition", "attachment; filename="+filename)
+	// 使用英文文件名，避免中文编码问题
+	filename := fmt.Sprintf("user_%d_vpn_config.conf", userVPN.ID)
+
+	// 设置响应头
 	c.Header("Content-Type", "text/plain")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	c.String(http.StatusOK, config)
 }
 

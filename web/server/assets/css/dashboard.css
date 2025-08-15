@@ -171,7 +171,7 @@ body {
     padding: 1.5rem;
     display: grid;
     grid-template-columns: repeat(12, 1fr);
-    grid-template-rows: auto auto auto auto; /* 定义4行，让布局更可控 */
+    grid-template-rows: auto auto auto 1fr; /* 恢复1fr，这是必要的 */
     grid-gap: 1.2rem;
     min-height: calc(100vh - 80px);
 }
@@ -180,7 +180,7 @@ body {
 .stat-card {
     background: var(--card-bg);
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1.25rem;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     transition: all 0.3s ease;
@@ -193,21 +193,13 @@ body {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
-}
+/* 删除统计卡片顶部装饰条 */
 
 .stat-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .stat-title {
@@ -232,7 +224,7 @@ body {
     font-size: 2rem;
     font-weight: 700;
     color: var(--text-primary);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
 }
 
 .stat-change {
@@ -260,14 +252,45 @@ body {
 .chart-card-2 { grid-column: span 4; }
 .chart-card-3 { grid-column: span 4; }
 
-.modules-card { grid-column: span 8; grid-row: span 2; }
+.modules-card { grid-column: span 8; grid-row: span 1; }
 .system-card { grid-column: span 4; }
+
+/* WireGuard接口管理面板样式（左侧） */
+.system-card .table-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.system-card .data-table {
+    font-size: 0.875rem;
+}
+
+.system-card .data-table th,
+.system-card .data-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+}
+
+.system-card .data-table th {
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* 模块管理面板样式（右侧） */
+.modules-card .table-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+
 
 /* 模块管理卡片特殊样式 */
 .modules-card {
     display: flex;
     flex-direction: column;
-    min-height: 500px; /* 设置最小高度确保与系统信息卡片对齐 */
+    min-height: 400px; /* 适中的最小高度 */
 }
 
 .modules-card .chart-header {
@@ -306,22 +329,27 @@ body {
 
 /* 表格滚动条样式 */
 .table-container::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 .table-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 3px;
 }
 
 .table-container::-webkit-scrollbar-thumb {
-    background: var(--primary-color);
-    border-radius: 4px;
+    background: rgba(59, 130, 246, 0.6);
+    border-radius: 3px;
+    transition: background 0.3s ease;
 }
 
 .table-container::-webkit-scrollbar-thumb:hover {
-    background: var(--secondary-color);
+    background: rgba(59, 130, 246, 0.8);
+}
+
+.table-container::-webkit-scrollbar-corner {
+    background: rgba(15, 23, 42, 0.3);
 }
 
 /* 加载状态优化 */
@@ -336,7 +364,7 @@ body {
 .chart-card {
     background: var(--card-bg);
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1.25rem;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
@@ -345,7 +373,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .chart-title {
@@ -360,12 +388,12 @@ body {
 }
 
 .chart-control-btn {
-    padding: 0.25rem 0.75rem;
+    padding: 0.2rem 0.6rem;
     border: 1px solid var(--border-color);
     background: transparent;
     color: var(--text-secondary);
-    border-radius: 6px;
-    font-size: 0.75rem;
+    border-radius: 5px;
+    font-size: 0.7rem;
     transition: all 0.3s ease;
 }
 
@@ -736,8 +764,18 @@ body {
     .stat-card-1, .stat-card-2, .stat-card-3, .stat-card-4 { grid-column: span 6; }
     .chart-card-1 { grid-column: span 12; }
     .chart-card-2, .chart-card-3 { grid-column: span 6; }
-    .modules-card { grid-column: span 8; grid-row: span 2; }
-    .system-card { grid-column: span 4; }
+    
+    /* 底部面板容器中的卡片不受grid影响 */
+    .bottom-panels-container .modules-card,
+    .bottom-panels-container .system-card {
+        grid-column: unset;
+        grid-row: unset;
+    }
+    
+    /* 接口管理面板在中等屏幕上的调整 */
+    .system-card .table-container {
+        max-height: 350px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -747,13 +785,20 @@ body {
     }
     
     .stat-card-1, .stat-card-2, .stat-card-3, .stat-card-4,
-    .chart-card-1, .chart-card-2, .chart-card-3,
-    .modules-card, .system-card {
+    .chart-card-1, .chart-card-2, .chart-card-3 {
         grid-column: span 1;
     }
-
-    /* 移动设备上的模块卡片调整 */
-    .modules-card {
+    
+    /* 底部面板容器在移动端改为垂直布局 */
+    .bottom-panels-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .bottom-panels-container .modules-card,
+    .bottom-panels-container .system-card {
+        flex: none;
+        height: auto;
         min-height: 400px;
     }
 
@@ -905,4 +950,593 @@ body {
 .form-check-input:focus {
     border-color: var(--primary-color) !important;
     box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25) !important;
+}
+
+/* 底部面板容器 */
+.bottom-panels-container {
+    grid-column: span 12;
+    grid-row: 3;
+    display: flex;
+    gap: 1.2rem;
+    height: 100%;
+    align-items: stretch;
+}
+
+.bottom-panels-container .modules-card {
+    flex: 1;
+    height: 100%;
+}
+
+.bottom-panels-container .system-card {
+    flex: 1;
+    height: 100%;
+} 
+
+/* 接口-模块卡片网格 */
+.interface-module-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    padding: 0.75rem;
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* 接口-模块网格滚动条样式 */
+.interface-module-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.interface-module-grid::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.2);
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+.interface-module-grid::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.5);
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.interface-module-grid::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.8);
+    border-color: rgba(59, 130, 246, 0.4);
+    transform: scaleX(1.1);
+}
+
+.interface-module-grid::-webkit-scrollbar-corner {
+    background: rgba(15, 23, 42, 0.2);
+}
+
+/* Firefox滚动条样式 */
+.interface-module-grid {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.5) rgba(15, 23, 42, 0.2);
+}
+
+/* 表格容器Firefox滚动条样式 */
+.table-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(15, 23, 42, 0.3);
+}
+
+.interface-module-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.6rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.interface-module-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+    border-color: var(--primary-color);
+}
+
+/* 删除顶部装饰条 */
+
+/* 接口信息区域 */
+.interface-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.interface-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.interface-title i {
+    color: var(--accent-color);
+    font-size: 1rem;
+}
+
+.interface-status {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 14px;
+    font-size: 0.65rem;
+    font-weight: 500;
+}
+
+.interface-status i {
+    font-size: 0.65rem;
+}
+
+.interface-status.running {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+    border: 1px solid var(--success-color);
+}
+
+.interface-status.stopped {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+    border: 1px solid var(--danger-color);
+}
+
+.interface-status.error {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+    border: 1px solid var(--warning-color);
+}
+
+/* 接口详情 */
+.interface-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.interface-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.interface-detail-label {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.interface-detail-value {
+    font-size: 0.75rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* 模块信息区域 */
+.module-section {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.module-title {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.module-title i {
+    color: var(--success-color);
+    font-size: 0.9rem;
+}
+
+.module-status {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 8px;
+    font-size: 0.6rem;
+    font-weight: 500;
+}
+
+.module-status i {
+    font-size: 0.6rem;
+}
+
+.module-status.online {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.module-status.offline {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+}
+
+.module-status.unknown {
+    background: rgba(156, 163, 175, 0.2);
+    color: var(--text-secondary);
+}
+
+/* 模块详情 */
+.module-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
+.module-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.module-detail-label {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.module-detail-value {
+    font-size: 0.7rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* 用户统计 */
+.user-stats {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.35rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    width: 100%;
+}
+
+.user-count {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 0.8rem;
+    margin-right: auto;
+    min-width: 120px;
+}
+
+.user-count i {
+    font-size: 0.9rem;
+}
+
+.user-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/* 操作按钮 */
+.card-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.card-action-btn {
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border-radius: 5px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.card-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+    color: var(--text-primary);
+}
+
+.card-action-btn.primary {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.card-action-btn.primary:hover {
+    background: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.card-action-btn.danger {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+.card-action-btn.danger:hover {
+    background: var(--danger-color);
+    color: white;
+}
+
+/* 紧凑按钮样式 */
+.card-action-btn.compact {
+    padding: 0.3rem 0.4rem;
+    min-width: 32px;
+    justify-content: center;
+}
+
+.card-action-btn.compact i {
+    font-size: 0.7rem;
+}
+
+/* 用户统计区域优化 */
+.user-stats {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.5rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+    width: 100%;
+}
+
+.user-count {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 0.8rem;
+    margin-right: auto;
+    min-width: 120px;
+}
+
+.user-count i {
+    font-size: 0.9rem;
+}
+
+.user-count-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+}
+
+.user-actions {
+    display: flex;
+    gap: 0.3rem;
+    margin-left: auto;
+}
+
+/* 空状态 */
+.empty-interface {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    color: var(--text-secondary);
+}
+
+.empty-interface i {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    opacity: 0.5;
+}
+
+.empty-interface h4 {
+    margin-bottom: 0.4rem;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.empty-interface p {
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .interface-module-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        padding: 0.5rem;
+    }
+    
+    .interface-module-card {
+        padding: 0.75rem;
+    }
+    
+    .interface-details,
+    .module-details {
+        grid-template-columns: 1fr;
+        gap: 0.4rem;
+    }
+    
+    .card-actions {
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+    
+    .card-action-btn {
+        justify-content: center;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.65rem;
+    }
+}
+
+/* 中等屏幕优化 */
+@media (min-width: 769px) and (max-width: 1200px) {
+    .interface-module-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.8rem;
+    }
+    
+    .interface-module-card {
+        padding: 0.8rem;
+    }
+}
+
+/* 小屏幕优化 */
+@media (max-width: 480px) {
+    .interface-module-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+    
+    .interface-module-card {
+        padding: 0.6rem;
+    }
+    
+    .interface-header {
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .interface-title {
+        font-size: 0.9rem;
+        gap: 0.3rem;
+    }
+    
+    .interface-status {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.65rem;
+        gap: 0.3rem;
+    }
+    
+    .module-section {
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .module-title {
+        font-size: 0.8rem;
+        gap: 0.3rem;
+    }
+    
+    .user-stats {
+        padding: 0.4rem;
+        margin-bottom: 0.5rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+    
+    .user-count {
+        margin-right: 0;
+        min-width: auto;
+        justify-content: center;
+    }
+    
+    .user-actions {
+        justify-content: center;
+        margin-left: 0;
+    }
+    
+    .card-action-btn.compact {
+        padding: 0.4rem 0.5rem;
+        min-width: 40px;
+    }
+    
+    .card-actions {
+        gap: 0.25rem;
+    }
+    
+    .card-action-btn {
+        padding: 0.3rem 0.4rem;
+        font-size: 0.6rem;
+        gap: 0.3rem;
+    }
+    
+    /* 小屏幕滚动条优化 */
+    .interface-module-grid::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .interface-module-grid::-webkit-scrollbar-thumb {
+        background: rgba(59, 130, 246, 0.7);
+    }
+    
+    .interface-module-grid::-webkit-scrollbar-thumb:hover {
+        background: rgba(59, 130, 246, 0.9);
+    }
+}
+
+/* 加载状态 */
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 150px;
+}
+
+/* 图表控制按钮组 */
+.chart-controls {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+/* 全局滚动条样式优化 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.1);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.4);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.6);
+}
+
+::-webkit-scrollbar-corner {
+    background: rgba(15, 23, 42, 0.1);
+}
+
+/* 全局Firefox滚动条样式 */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.4) rgba(15, 23, 42, 0.1);
 } 

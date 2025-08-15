@@ -23,13 +23,14 @@ type WireGuardInterface struct {
 	DeletedAt   gorm.DeletedAt  `json:"deleted_at" gorm:"index"`
 
 	// 配置选项
-	DNS        string `json:"dns" gorm:"default:'8.8.8.8,8.8.4.4'"` // DNS服务器
-	MTU        int    `json:"mtu" gorm:"default:1420"`              // MTU大小
-	PostUp     string `json:"post_up" gorm:"size:500"`              // 启动后执行的命令
-	PostDown   string `json:"post_down" gorm:"size:500"`            // 停止后执行的命令
-	PreUp      string `json:"pre_up" gorm:"size:500"`               // 启动前执行的命令
-	PreDown    string `json:"pre_down" gorm:"size:500"`             // 停止前执行的命令
-	SaveConfig bool   `json:"save_config" gorm:"default:true"`      // 是否保存配置
+	DNS              string `json:"dns" gorm:"default:'8.8.8.8,8.8.4.4'"`            // DNS服务器
+	MTU              int    `json:"mtu" gorm:"default:1420"`                         // MTU大小
+	NetworkInterface string `json:"network_interface" gorm:"default:'eth0';size:20"` // 服务器网络接口名称
+	PostUp           string `json:"post_up" gorm:"size:500"`                         // 启动后执行的命令
+	PostDown         string `json:"post_down" gorm:"size:500"`                       // 停止后执行的命令
+	PreUp            string `json:"pre_up" gorm:"size:500"`                          // 启动前执行的命令
+	PreDown          string `json:"pre_down" gorm:"size:500"`                        // 停止前执行的命令
+	SaveConfig       bool   `json:"save_config" gorm:"default:true"`                 // 是否保存配置
 
 	// 统计信息
 	TotalPeers    int       `json:"total_peers" gorm:"default:0"`   // 总连接数

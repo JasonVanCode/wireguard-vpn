@@ -324,6 +324,16 @@ func (mh *ModuleHandler) GenerateModuleConfig(c *gin.Context) {
 		return
 	}
 
+	// 获取模块信息用于文件名
+	module, err := mh.moduleService.GetModule(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "模块不存在: " + err.Error(),
+		})
+		return
+	}
+
 	config, err := mh.moduleService.GenerateModuleConfig(uint(id))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -333,9 +343,12 @@ func (mh *ModuleHandler) GenerateModuleConfig(c *gin.Context) {
 		return
 	}
 
+	// 使用英文文件名，避免中文编码问题
+	filename := fmt.Sprintf("module_%d.conf", module.ID)
+
 	// 设置下载头部
 	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Disposition", "attachment; filename=wg_module.conf")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	c.String(http.StatusOK, config)
 }
 

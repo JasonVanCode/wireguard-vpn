@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+
 	"strings"
 	"time"
 
 	"eitec-vpn/internal/server/database"
 	"eitec-vpn/internal/server/models"
+	"eitec-vpn/internal/shared/config"
 	"eitec-vpn/internal/shared/wireguard"
 
 	"os/exec"
@@ -96,6 +98,128 @@ func (wis *WireGuardInterfaceService) GetInterfaces() ([]models.WireGuardInterfa
 		return nil, fmt.Errorf("查询接口列表失败: %w", err)
 	}
 	return interfaces, nil
+}
+
+// GetInterfacesWithStatus 获取WireGuard接口列表（包含实时状态）
+func (wis *WireGuardInterfaceService) GetInterfacesWithStatus() ([]InterfaceWithRealTimeStatus, error) {
+	// 一次性预加载所有关联数据，避免N+1查询问题
+	var interfaces []models.WireGuardInterface
+	if err := wis.db.Preload("Modules.UserVPNs").Find(&interfaces).Error; err != nil {
+		return nil, fmt.Errorf("查询接口列表失败: %w", err)
+	}
+
+	// 创建WireGuard状态检测服务
+	showService := NewWireGuardShowService()
+
+	var result []InterfaceWithRealTimeStatus
+	for _, iface := range interfaces {
+		interfaceStatus := InterfaceWithRealTimeStatus{
+			WireGuardInterface: iface,
+			IsActive:           false,
+			PeerCount:          0,
+			ActivePeers:        0,
+			TotalTraffic:       ShowTrafficData{},
+			ConfigExists:       showService.CheckConfigExists(iface.Name),
+			ServiceStatus:      "inactive",
+			Modules:            []ModuleWithStatus{},
+		}
+
+		// 获取实时状态
+		if showInfo, err := showService.GetInterfaceInfo(iface.Name); err == nil && showInfo.IsActive {
+			interfaceStatus.IsActive = showInfo.IsActive
+			interfaceStatus.PeerCount = showInfo.PeerCount
+			interfaceStatus.ActivePeers = showInfo.ActivePeers
+			interfaceStatus.TotalTraffic = ShowTrafficData{
+				RxBytes: showInfo.TotalTraffic.RxBytes,
+				TxBytes: showInfo.TotalTraffic.TxBytes,
+				RxMB:    "[WG] " + showInfo.TotalTraffic.RxMB,
+				TxMB:    "[WG] " + showInfo.TotalTraffic.TxMB,
+				Total:   "[WG] " + showInfo.TotalTraffic.Total,
+			}
+			interfaceStatus.LastHandshake = showInfo.LastHandshake
+			interfaceStatus.ServiceStatus = "[WG] active"
+		}
+
+		// 处理关联模块的实时状态（数据已通过Preload加载）
+		if len(iface.Modules) > 0 {
+			for _, module := range iface.Modules {
+				// 直接使用预加载的用户数据，避免循环查询数据库
+				users := wis.convertUserVPNsToModuleUserInfo(module.UserVPNs, interfaceStatus.IsActive)
+
+				moduleStatus := ModuleWithStatus{
+					Module:            module,
+					IsOnline:          false,
+					LastSeen:          nil,
+					LatestHandshake:   nil,
+					TrafficStats:      ShowTrafficData{},
+					CurrentEndpoint:   "",
+					ConnectionQuality: "unknown",
+					PingLatency:       -1,
+					UserCount:         len(users),
+					Users:             users,
+				}
+
+				// 如果有实时状态，更新模块信息和用户状态
+				if interfaceStatus.IsActive {
+					if showInfo, err := showService.GetInterfaceInfo(iface.Name); err == nil {
+						// 更新模块状态
+						if peer, exists := showInfo.Peers[module.PublicKey]; exists {
+							moduleStatus.IsOnline = peer.IsOnline
+							moduleStatus.LatestHandshake = peer.LatestHandshake
+							moduleStatus.TrafficStats = ShowTrafficData{
+								RxBytes: peer.TrafficStats.RxBytes,
+								TxBytes: peer.TrafficStats.TxBytes,
+								RxMB:    "[WG] " + peer.TrafficStats.RxMB,
+								TxMB:    "[WG] " + peer.TrafficStats.TxMB,
+								Total:   "[WG] " + peer.TrafficStats.Total,
+							}
+							moduleStatus.CurrentEndpoint = "[WG] " + peer.Endpoint
+							moduleStatus.LastSeen = peer.LatestHandshake
+						}
+
+						// 根据wg show输出更新用户状态（数据库状态作废）
+						for i := range moduleStatus.Users {
+							userPublicKey := ""
+							// 根据用户ID查找对应的UserVPN记录获取公钥
+							for _, userVPN := range module.UserVPNs {
+								if userVPN.ID == moduleStatus.Users[i].ID {
+									userPublicKey = userVPN.PublicKey
+									break
+								}
+							}
+
+							// 只根据wg show输出判断用户是否在线
+							if userPublicKey != "" {
+								if userPeer, exists := showInfo.Peers[userPublicKey]; exists && userPeer.IsOnline {
+									moduleStatus.Users[i].IsActive = true
+								} else {
+									moduleStatus.Users[i].IsActive = false
+								}
+							} else {
+								moduleStatus.Users[i].IsActive = false
+							}
+						}
+					} else {
+						// 无法获取wg show信息，所有用户设为离线
+						for i := range moduleStatus.Users {
+							moduleStatus.Users[i].IsActive = false
+						}
+					}
+				} else {
+					// 接口未激活，所有用户设为离线
+					for i := range moduleStatus.Users {
+						moduleStatus.Users[i].IsActive = false
+					}
+				}
+
+				interfaceStatus.Modules = append(interfaceStatus.Modules, moduleStatus)
+			}
+		}
+
+		result = append(result, interfaceStatus)
+	}
+
+	return result, nil
 }
 
 // GetInterface 获取单个WireGuard接口
@@ -237,11 +361,17 @@ func (wis *WireGuardInterfaceService) DeleteInterface(id uint) error {
 		wis.StopInterface(id)
 	}
 
-	// 删除IP池
-	wis.db.Where("network = ?", wgInterface.Network).Delete(&models.IPPool{})
+	// 删除配置文件
+	configPath := fmt.Sprintf("/etc/wireguard/%s.conf", wgInterface.Name)
+	if _, err := os.Stat(configPath); err == nil {
+		os.Remove(configPath)
+	}
 
-	// 删除接口记录
-	if err := wis.db.Delete(wgInterface).Error; err != nil {
+	// 删除IP池
+	wis.db.Unscoped().Where("network = ?", wgInterface.Network).Delete(&models.IPPool{})
+
+	// 硬删除接口记录
+	if err := wis.db.Unscoped().Delete(wgInterface).Error; err != nil {
 		return fmt.Errorf("删除接口失败: %w", err)
 	}
 
@@ -415,42 +545,33 @@ func (wis *WireGuardInterfaceService) GenerateInterfaceConfig(wgInterface *model
 		config.WriteString("SaveConfig = true\n")
 	}
 
-	// 基础PostUp/PostDown规则
+	// 基础PostUp/PostDown规则 - 参考用户成功配置
+	// 确定网络接口名称
+	networkInterface := "eth0" // 默认值
+	if wgInterface.NetworkInterface != "" {
+		networkInterface = wgInterface.NetworkInterface
+	}
+
 	if wgInterface.PostUp != "" {
 		config.WriteString(fmt.Sprintf("PostUp = %s\n", wgInterface.PostUp))
 	} else {
-		// 默认规则：NAT + FORWARD + INPUT
-		config.WriteString(fmt.Sprintf("PostUp = iptables -t nat -A POSTROUTING -s %s -o eth0 -j MASQUERADE; iptables -A INPUT -p udp -m udp --dport %d -j ACCEPT; iptables -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT;\n",
-			wgInterface.Network, wgInterface.ListenPort, wgInterface.Name, wgInterface.Name))
+		// 使用成功验证的规则格式：简洁且使用%i占位符和动态网络接口
+		config.WriteString(fmt.Sprintf("PostUp = iptables -A FORWARD -i %%i -j ACCEPT; iptables -A FORWARD -o %%i -j ACCEPT; iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", networkInterface))
 	}
 
 	if wgInterface.PostDown != "" {
 		config.WriteString(fmt.Sprintf("PostDown = %s\n", wgInterface.PostDown))
 	} else {
-		// 默认清理规则
-		config.WriteString(fmt.Sprintf("PostDown = iptables -t nat -D POSTROUTING -s %s -o eth0 -j MASQUERADE; iptables -D INPUT -p udp -m udp --dport %d -j ACCEPT; iptables -D FORWARD -i %s -j ACCEPT; iptables -D FORWARD -o %s -j ACCEPT;\n",
-			wgInterface.Network, wgInterface.ListenPort, wgInterface.Name, wgInterface.Name))
+		// 对应的清理规则
+		config.WriteString(fmt.Sprintf("PostDown = iptables -D FORWARD -i %%i -j ACCEPT; iptables -D FORWARD -o %%i -j ACCEPT; iptables -t nat -D POSTROUTING -o %s -j MASQUERADE\n", networkInterface))
 	}
 
-	// 获取所有模块并生成内网穿透规则
+	// 获取所有模块信息（用于生成Peer配置）
 	var modules []models.Module
 	wis.db.Where("interface_id = ?", wgInterface.ID).Find(&modules)
 
-	// 收集所有需要内网穿透的网段
-	internalNetworks := make(map[string]bool)
-	for _, module := range modules {
-		if module.AllowedIPs != "" && module.AllowedIPs != "192.168.1.0/24" && module.AllowedIPs != wgInterface.Network {
-			internalNetworks[module.AllowedIPs] = true
-		}
-	}
-
-	// 为每个内网段添加FORWARD规则
-	for network := range internalNetworks {
-		config.WriteString(fmt.Sprintf("PostUp = iptables -I FORWARD -s %s -i %s -d %s -j ACCEPT\n", wgInterface.Network, wgInterface.Name, network))
-		config.WriteString(fmt.Sprintf("PostUp = iptables -I FORWARD -s %s -i %s -d %s -j ACCEPT\n", network, wgInterface.Name, wgInterface.Network))
-		config.WriteString(fmt.Sprintf("PostDown = iptables -D FORWARD -s %s -i %s -d %s -j ACCEPT\n", wgInterface.Network, wgInterface.Name, network))
-		config.WriteString(fmt.Sprintf("PostDown = iptables -D FORWARD -s %s -i %s -d %s -j ACCEPT\n", network, wgInterface.Name, wgInterface.Network))
-	}
+	// 注意：不再自动生成硬编码的iptables规则
+	// 用户反馈：这些规则不够灵活，应该由用户自定义或使用默认规则
 
 	if wgInterface.PreUp != "" {
 		config.WriteString(fmt.Sprintf("PreUp = %s\n", wgInterface.PreUp))
@@ -465,17 +586,22 @@ func (wis *WireGuardInterfaceService) GenerateInterfaceConfig(wgInterface *model
 		config.WriteString("\n[Peer]\n")
 		config.WriteString(fmt.Sprintf("# %s - %s\n", module.Name, module.Location))
 		config.WriteString(fmt.Sprintf("PublicKey = %s\n", module.PublicKey))
-		config.WriteString(fmt.Sprintf("AllowedIPs = %s/32", module.IPAddress))
-
-		// 如果模块配置了内网访问，添加到AllowedIPs
-		if module.AllowedIPs != "" && module.AllowedIPs != "192.168.1.0/24" {
-			config.WriteString(fmt.Sprintf(",%s", module.AllowedIPs))
-		}
-		config.WriteString("\n")
 
 		// 添加预共享密钥（如果有）
 		if module.PresharedKey != "" {
 			config.WriteString(fmt.Sprintf("PresharedKey = %s\n", module.PresharedKey))
+		}
+
+		// AllowedIPs格式：模块VPN_IP/32, 内网网段
+		config.WriteString(fmt.Sprintf("AllowedIPs = %s/32", module.IPAddress))
+		if module.AllowedIPs != "" && module.AllowedIPs != "192.168.1.0/24" {
+			config.WriteString(fmt.Sprintf(", %s", module.AllowedIPs))
+		}
+		config.WriteString("\n")
+
+		// 添加Endpoint（如果有配置）
+		if module.Endpoint != "" {
+			config.WriteString(fmt.Sprintf("Endpoint = %s\n", module.Endpoint))
 		}
 
 		if module.PersistentKA > 0 {
@@ -493,18 +619,18 @@ func (wis *WireGuardInterfaceService) GenerateInterfaceConfig(wgInterface *model
 		config.WriteString("\n[Peer]\n")
 		config.WriteString(fmt.Sprintf("# User: %s\n", userVPN.Username))
 		config.WriteString(fmt.Sprintf("PublicKey = %s\n", userVPN.PublicKey))
-		config.WriteString(fmt.Sprintf("AllowedIPs = %s/32", userVPN.IPAddress))
 
-		// 如果用户配置了特定的网段访问，添加到AllowedIPs
-		if userVPN.AllowedIPs != "" && userVPN.AllowedIPs != "0.0.0.0/0" {
-			config.WriteString(fmt.Sprintf(",%s", userVPN.AllowedIPs))
-		}
-		config.WriteString("\n")
+		// 参考用户成功配置：AllowedIPs = 10.10.0.3/32
+		// 只包含用户的VPN IP，不包含网段
+		config.WriteString(fmt.Sprintf("AllowedIPs = %s/32\n", userVPN.IPAddress))
 
 		// 添加预共享密钥（如果有）
 		if userVPN.PresharedKey != "" {
 			config.WriteString(fmt.Sprintf("PresharedKey = %s\n", userVPN.PresharedKey))
 		}
+
+		// 添加Endpoint（如果需要）
+		// 注意：用户客户端配置中的Endpoint是服务器端点，服务端配置中不需要
 
 		if userVPN.PersistentKA > 0 {
 			config.WriteString(fmt.Sprintf("PersistentKeepalive = %d\n", userVPN.PersistentKA))
@@ -578,4 +704,369 @@ func (wis *WireGuardInterfaceService) GetAllInterfacesTrafficStats() ([]models.T
 	}
 
 	return allStats, nil
+}
+
+// =====================================================
+// WireGuard Show 命令解析功能
+// =====================================================
+
+// WireGuardShowInfo WireGuard show命令输出的完整信息
+type WireGuardShowInfo struct {
+	InterfaceName string              `json:"interface_name"`
+	PublicKey     string              `json:"public_key"`
+	ListenPort    int                 `json:"listen_port"`
+	Peers         []WireGuardPeerInfo `json:"peers"`
+	TotalPeers    int                 `json:"total_peers"`
+	OnlinePeers   int                 `json:"online_peers"`
+}
+
+// WireGuardPeerInfo WireGuard对等端信息
+type WireGuardPeerInfo struct {
+	PublicKey           string    `json:"public_key"`
+	Endpoint            string    `json:"endpoint"`
+	AllowedIPs          []string  `json:"allowed_ips"`
+	LatestHandshake     time.Time `json:"latest_handshake"`
+	TransferRxBytes     uint64    `json:"transfer_rx_bytes"`
+	TransferTxBytes     uint64    `json:"transfer_tx_bytes"`
+	TransferRxFormatted string    `json:"transfer_rx_formatted"`
+	TransferTxFormatted string    `json:"transfer_tx_formatted"`
+	PersistentKeepalive int       `json:"persistent_keepalive"`
+	IsOnline            bool      `json:"is_online"`
+	LastSeenAgo         string    `json:"last_seen_ago"`
+}
+
+// ParseWireGuardShow 解析wg show命令的输出
+func (wis *WireGuardInterfaceService) ParseWireGuardShow(interfaceName string) (*WireGuardShowInfo, error) {
+	// 执行wg show命令
+	cmd := exec.Command("wg", "show", interfaceName)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("执行wg show命令失败: %w", err)
+	}
+
+	// 解析输出
+	return wis.parseWireGuardShowOutput(string(output))
+}
+
+// parseWireGuardShowOutput 解析wg show命令的文本输出
+func (wis *WireGuardInterfaceService) parseWireGuardShowOutput(output string) (*WireGuardShowInfo, error) {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("wg show输出为空")
+	}
+
+	info := &WireGuardShowInfo{
+		Peers: make([]WireGuardPeerInfo, 0),
+	}
+
+	var currentPeer *WireGuardPeerInfo
+	var currentSection string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// 判断当前行属于哪个部分
+		if strings.HasPrefix(line, "interface:") {
+			currentSection = "interface"
+			info.InterfaceName = strings.TrimSpace(strings.TrimPrefix(line, "interface:"))
+		} else if strings.HasPrefix(line, "peer:") {
+			currentSection = "peer"
+			// 如果有上一个peer，先保存
+			if currentPeer != nil {
+				info.Peers = append(info.Peers, *currentPeer)
+			}
+			// 开始新的peer
+			currentPeer = &WireGuardPeerInfo{
+				PublicKey: strings.TrimSpace(strings.TrimPrefix(line, "peer:")),
+			}
+		} else if currentSection == "interface" {
+			// 解析接口信息
+			if strings.HasPrefix(line, "public key:") {
+				info.PublicKey = strings.TrimSpace(strings.TrimPrefix(line, "public key:"))
+			} else if strings.HasPrefix(line, "listening port:") {
+				portStr := strings.TrimSpace(strings.TrimPrefix(line, "listening port:"))
+				if port, err := parsePort(portStr); err == nil {
+					info.ListenPort = port
+				}
+			}
+		} else if currentSection == "peer" && currentPeer != nil {
+			// 解析peer信息
+			if strings.HasPrefix(line, "endpoint:") {
+				currentPeer.Endpoint = strings.TrimSpace(strings.TrimPrefix(line, "endpoint:"))
+			} else if strings.HasPrefix(line, "allowed ips:") {
+				ipsStr := strings.TrimSpace(strings.TrimPrefix(line, "allowed ips:"))
+				currentPeer.AllowedIPs = parseAllowedIPs(ipsStr)
+			} else if strings.HasPrefix(line, "latest handshake:") {
+				handshakeStr := strings.TrimSpace(strings.TrimPrefix(line, "latest handshake:"))
+				currentPeer.LatestHandshake, currentPeer.LastSeenAgo = parseLatestHandshake(handshakeStr)
+			} else if strings.HasPrefix(line, "transfer:") {
+				transferStr := strings.TrimSpace(strings.TrimPrefix(line, "transfer:"))
+				currentPeer.TransferRxBytes, currentPeer.TransferTxBytes, currentPeer.TransferRxFormatted, currentPeer.TransferTxFormatted = parseTransfer(transferStr)
+			} else if strings.HasPrefix(line, "persistent keepalive:") {
+				keepaliveStr := strings.TrimSpace(strings.TrimPrefix(line, "persistent keepalive:"))
+				currentPeer.PersistentKeepalive = parsePersistentKeepalive(keepaliveStr)
+			}
+		}
+	}
+
+	// 保存最后一个peer
+	if currentPeer != nil {
+		info.Peers = append(info.Peers, *currentPeer)
+	}
+
+	// 计算统计信息
+	info.TotalPeers = len(info.Peers)
+	info.OnlinePeers = 0
+	now := time.Now()
+
+	for i := range info.Peers {
+		// 使用统一的超时常量判断peer是否在线
+		if info.Peers[i].LatestHandshake.After(now.Add(-config.WireGuardOnlineTimeout)) {
+			info.Peers[i].IsOnline = true
+			info.OnlinePeers++
+		} else {
+			info.Peers[i].IsOnline = false
+		}
+	}
+
+	return info, nil
+}
+
+// parsePort 解析端口号
+func parsePort(portStr string) (int, error) {
+	var port int
+	_, err := fmt.Sscanf(portStr, "%d", &port)
+	return port, err
+}
+
+// parseAllowedIPs 解析允许的IP地址列表
+func parseAllowedIPs(ipsStr string) []string {
+	ips := strings.Split(ipsStr, ",")
+	result := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		ip = strings.TrimSpace(ip)
+		if ip != "" {
+			result = append(result, ip)
+		}
+	}
+	return result
+}
+
+// parseLatestHandshake 解析最新握手时间
+func parseLatestHandshake(handshakeStr string) (time.Time, string) {
+	now := time.Now()
+
+	// 处理相对时间格式
+	if strings.Contains(handshakeStr, "ago") {
+		// 移除"ago"并解析时间
+		timeStr := strings.TrimSpace(strings.TrimSuffix(handshakeStr, "ago"))
+
+		// 解析各种时间格式
+		if strings.Contains(timeStr, "second") {
+			var seconds int
+			fmt.Sscanf(timeStr, "%d second", &seconds)
+			if strings.Contains(timeStr, "seconds") {
+				fmt.Sscanf(timeStr, "%d seconds", &seconds)
+			}
+			return now.Add(-time.Duration(seconds) * time.Second), handshakeStr
+		} else if strings.Contains(timeStr, "minute") {
+			var minutes int
+			fmt.Sscanf(timeStr, "%d minute", &minutes)
+			if strings.Contains(timeStr, "minutes") {
+				fmt.Sscanf(timeStr, "%d minutes", &minutes)
+			}
+			return now.Add(-time.Duration(minutes) * time.Minute), handshakeStr
+		} else if strings.Contains(timeStr, "hour") {
+			var hours int
+			fmt.Sscanf(timeStr, "%d hour", &hours)
+			if strings.Contains(timeStr, "hours") {
+				fmt.Sscanf(timeStr, "%d hours", &hours)
+			}
+			return now.Add(-time.Duration(hours) * time.Hour), handshakeStr
+		} else if strings.Contains(timeStr, "day") {
+			var days int
+			fmt.Sscanf(timeStr, "%d day", &days)
+			if strings.Contains(timeStr, "days") {
+				fmt.Sscanf(timeStr, "%d days", &days)
+			}
+			return now.Add(-time.Duration(days) * 24 * time.Hour), handshakeStr
+		}
+	}
+
+	// 如果无法解析，返回当前时间
+	return now, handshakeStr
+}
+
+// parseTransfer 解析传输数据
+func parseTransfer(transferStr string) (rxBytes, txBytes uint64, rxFormatted, txFormatted string) {
+	// 示例: "60.07 KiB received, 851.23 KiB sent"
+	parts := strings.Split(transferStr, ",")
+	if len(parts) != 2 {
+		return 0, 0, "", ""
+	}
+
+	// 解析接收数据
+	rxPart := strings.TrimSpace(parts[0])
+	rxFormatted = rxPart
+	if strings.Contains(rxPart, "received") {
+		rxBytes = parseDataSize(rxPart)
+	}
+
+	// 解析发送数据
+	txPart := strings.TrimSpace(parts[1])
+	txFormatted = txPart
+	if strings.Contains(txPart, "sent") {
+		txBytes = parseDataSize(txPart)
+	}
+
+	return rxBytes, txBytes, rxFormatted, txFormatted
+}
+
+// parseDataSize 解析数据大小（KiB, MiB, GiB等）
+func parseDataSize(sizeStr string) uint64 {
+	var size float64
+	var unit string
+
+	// 提取数字和单位
+	fmt.Sscanf(sizeStr, "%f %s", &size, &unit)
+
+	// 根据单位转换为字节
+	switch strings.ToLower(unit) {
+	case "b", "byte", "bytes":
+		return uint64(size)
+	case "kib":
+		return uint64(size * 1024)
+	case "mib":
+		return uint64(size * 1024 * 1024)
+	case "gib":
+		return uint64(size * 1024 * 1024 * 1024)
+	case "kb":
+		return uint64(size * 1000)
+	case "mb":
+		return uint64(size * 1000 * 1000)
+	case "gb":
+		return uint64(size * 1000 * 1000 * 1000)
+	default:
+		return uint64(size)
+	}
+}
+
+// parsePersistentKeepalive 解析保活间隔
+func parsePersistentKeepalive(keepaliveStr string) int {
+	// 示例: "every 25 seconds"
+	if strings.Contains(keepaliveStr, "every") {
+		var seconds int
+		fmt.Sscanf(keepaliveStr, "every %d seconds", &seconds)
+		return seconds
+	}
+	return 0
+}
+
+// GetWireGuardShowInfo 获取WireGuard接口的show信息（便捷方法）
+func (wis *WireGuardInterfaceService) GetWireGuardShowInfo(interfaceName string) (*WireGuardShowInfo, error) {
+	return wis.ParseWireGuardShow(interfaceName)
+}
+
+// =====================================================
+// 实时状态检测相关结构体和方法
+// =====================================================
+
+// InterfaceWithRealTimeStatus 带实时状态的接口信息
+type InterfaceWithRealTimeStatus struct {
+	models.WireGuardInterface
+
+	// 实时状态信息（从wg show获取）
+	IsActive      bool            `json:"is_active"`      // 接口是否激活
+	PeerCount     int             `json:"peer_count"`     // 当前连接的peer数量
+	ActivePeers   int             `json:"active_peers"`   // 活跃的peer数量
+	TotalTraffic  ShowTrafficData `json:"total_traffic"`  // 总流量统计
+	LastHandshake *time.Time      `json:"last_handshake"` // 最近握手时间
+
+	// 系统状态
+	ConfigExists  bool   `json:"config_exists"`  // 配置文件是否存在
+	ServiceStatus string `json:"service_status"` // 系统服务状态
+
+	// 模块信息
+	Modules []ModuleWithStatus `json:"modules,omitempty"`
+}
+
+// ModuleWithStatus 带实时状态的模块信息
+type ModuleWithStatus struct {
+	models.Module
+
+	// 实时状态信息（从wg show获取）
+	IsOnline        bool            `json:"is_online"`        // 是否在线
+	LastSeen        *time.Time      `json:"last_seen"`        // 最后见到时间
+	LatestHandshake *time.Time      `json:"latest_handshake"` // 最新握手时间
+	TrafficStats    ShowTrafficData `json:"traffic_stats"`    // 流量统计
+	CurrentEndpoint string          `json:"current_endpoint"` // 当前连接端点
+
+	// 连接质量
+	ConnectionQuality string `json:"connection_quality"` // 连接质量评估
+	PingLatency       int    `json:"ping_latency"`       // ping延迟(ms)
+
+	// 用户信息（直接返回用户列表而不是数量）
+	UserCount int              `json:"user_count"` // 关联的用户数量（保持兼容性）
+	Users     []ModuleUserInfo `json:"users"`      // 用户详细信息列表
+}
+
+// ModuleUserInfo 模块用户信息
+type ModuleUserInfo struct {
+	ID        uint   `json:"id"`
+	Username  string `json:"username"`
+	Email     string `json:"email,omitempty"`
+	IsActive  bool   `json:"is_active"`
+	IPAddress string `json:"ip_address"`
+}
+
+// ShowTrafficData 流量数据（使用show service的格式）
+type ShowTrafficData struct {
+	RxBytes uint64 `json:"rx_bytes"` // 接收字节数
+	TxBytes uint64 `json:"tx_bytes"` // 发送字节数
+	RxMB    string `json:"rx_mb"`    // 接收MB（格式化）
+	TxMB    string `json:"tx_mb"`    // 发送MB（格式化）
+	Total   string `json:"total"`    // 总流量（格式化）
+}
+
+// 旧的重复代码已移动到 wireguard_show_service.go
+
+// getUserCountForModule 获取模块的用户数量
+func (wis *WireGuardInterfaceService) getUserCountForModule(moduleID uint) int {
+	var count int64
+	wis.db.Model(&models.UserVPN{}).Where("module_id = ?", moduleID).Count(&count)
+	return int(count)
+}
+
+// convertUserVPNsToModuleUserInfo 将预加载的UserVPN数据转换为ModuleUserInfo
+// 用户状态统一由wg show输出决定，数据库状态作废
+func (wis *WireGuardInterfaceService) convertUserVPNsToModuleUserInfo(userVPNs []models.UserVPN, interfaceIsActive bool) []ModuleUserInfo {
+	if len(userVPNs) == 0 {
+		return []ModuleUserInfo{}
+	}
+
+	users := make([]ModuleUserInfo, 0, len(userVPNs))
+	for _, userVPN := range userVPNs {
+		users = append(users, ModuleUserInfo{
+			ID:        userVPN.ID,
+			Username:  userVPN.Username,
+			Email:     userVPN.Email,
+			IsActive:  false, // 默认离线，后续根据wg show输出更新
+			IPAddress: userVPN.IPAddress,
+		})
+	}
+
+	return users
+}
+
+// getModuleUsers 获取模块的用户列表（保留为向后兼容）
+func (wis *WireGuardInterfaceService) getModuleUsers(moduleID uint, interfaceIsActive bool) []ModuleUserInfo {
+	var userVPNs []models.UserVPN
+	if err := wis.db.Where("module_id = ?", moduleID).Find(&userVPNs).Error; err != nil {
+		return []ModuleUserInfo{}
+	}
+
+	return wis.convertUserVPNsToModuleUserInfo(userVPNs, interfaceIsActive)
 }

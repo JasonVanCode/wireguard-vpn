@@ -33,6 +33,7 @@ func (us *UserService) Login(username, password string) (*models.User, error) {
 		}
 		return nil, fmt.Errorf("查询用户失败: %w", err)
 	}
+	fmt.Println("user", user)
 
 	// 验证密码
 	if !utils.CheckPassword(password, user.Password) {

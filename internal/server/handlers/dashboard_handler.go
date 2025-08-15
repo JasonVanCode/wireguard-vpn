@@ -1,159 +1,307 @@
 package handlers
 
 import (
+	"net"
 	"net/http"
-	"strconv"
+	"os/exec"
+	"strings"
 	"time"
 
+	"eitec-vpn/internal/server/database"
+	"eitec-vpn/internal/server/models"
 	"eitec-vpn/internal/server/services"
+	"eitec-vpn/internal/shared/config"
 	"eitec-vpn/internal/shared/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // DashboardHandler 仪表盘处理器
 type DashboardHandler struct {
 	dashboardService *services.DashboardService
+	db               *gorm.DB
 }
 
 // NewDashboardHandler 创建仪表盘处理器
 func NewDashboardHandler(dashboardService *services.DashboardService) *DashboardHandler {
 	return &DashboardHandler{
 		dashboardService: dashboardService,
+		db:               database.DB,
 	}
 }
 
-// GetDashboardStats 获取仪表盘统计数据
+// GetDashboardStats 获取仪表盘统计数据（用于统计卡片）
 func (dh *DashboardHandler) GetDashboardStats(c *gin.Context) {
-	stats, err := dh.dashboardService.GetDashboardStats()
+	// 使用实时 WireGuard 状态获取模块统计
+	moduleStats, err := dh.getModuleStatsFromWireGuard()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取仪表盘数据失败: " + err.Error(),
-		})
+		// 如果获取实时状态失败，降级到数据库统计
+		moduleStats, err = dh.getModuleStatsFromDB()
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, "获取模块统计数据失败: "+err.Error())
+			return
+		}
+	}
+
+	// 获取系统资源使用率
+	systemResources, err := dh.dashboardService.GetSystemHealth()
+	if err != nil {
+		// 如果获取系统资源失败，使用默认值
+		stats := map[string]interface{}{
+			"module_stats": map[string]interface{}{
+				"online": moduleStats.OnlineModules,
+				"total":  moduleStats.TotalModules,
+			},
+			"user_stats": map[string]interface{}{
+				"online": moduleStats.OnlineUsers,
+				"total":  moduleStats.TotalUsers,
+			},
+			"system_resources": map[string]interface{}{
+				"cpu_usage":    0.0,
+				"memory_usage": 0.0,
+				"disk_usage":   0.0,
+			},
+			"service_status": map[string]interface{}{
+				"wireguard_status": "unknown",
+				"database_status":  "unknown",
+				"api_status":       "unknown",
+			},
+		}
+		response.Success(c, stats)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    stats,
-	})
+	// 从系统资源中提取CPU、内存、磁盘使用率
+	var cpuUsage, memoryUsage, diskUsage float64
+	var wireguardStatus, databaseStatus, apiStatus string
+
+	if systemResources != nil {
+		// 从SystemHealthInfo结构体中提取数据
+		if systemResources.SystemRes != nil {
+			cpuUsage = systemResources.SystemRes.CPUUsage
+			memoryUsage = systemResources.SystemRes.MemoryUsage
+			diskUsage = systemResources.SystemRes.DiskUsage
+		}
+
+		// 从健康检查中提取服务状态
+		if systemResources.Checks != nil {
+			if wgCheck, exists := systemResources.Checks["wireguard"]; exists {
+				wireguardStatus = wgCheck.Status
+			}
+			if dbCheck, exists := systemResources.Checks["database"]; exists {
+				databaseStatus = dbCheck.Status
+			}
+			if apiCheck, exists := systemResources.Checks["api"]; exists {
+				apiStatus = apiCheck.Status
+			}
+		}
+	}
+
+	// 构建完整的统计数据
+	stats := map[string]interface{}{
+		"module_stats": map[string]interface{}{
+			"online": moduleStats.OnlineModules,
+			"total":  moduleStats.TotalModules,
+		},
+		"user_stats": map[string]interface{}{
+			"online": moduleStats.OnlineUsers,
+			"total":  moduleStats.TotalUsers,
+		},
+		"system_resources": map[string]interface{}{
+			"cpu_usage":    cpuUsage,
+			"memory_usage": memoryUsage,
+			"disk_usage":   diskUsage,
+		},
+		"service_status": map[string]interface{}{
+			"wireguard_status": wireguardStatus,
+			"database_status":  databaseStatus,
+			"api_status":       apiStatus,
+		},
+	}
+
+	response.Success(c, stats)
 }
 
-// GetSystemHealth 获取系统健康状态
+// ModuleStats 模块统计信息
+type ModuleStats struct {
+	OnlineModules int64 `json:"online_modules"`
+	TotalModules  int64 `json:"total_modules"`
+	OnlineUsers   int64 `json:"online_users"`
+	TotalUsers    int64 `json:"total_users"`
+}
+
+// getModuleStatsFromDB 从数据库获取模块统计信息
+func (dh *DashboardHandler) getModuleStatsFromDB() (*ModuleStats, error) {
+	stats := &ModuleStats{}
+
+	// 统计总模块数
+	if err := dh.db.Model(&models.Module{}).Count(&stats.TotalModules).Error; err != nil {
+		return nil, err
+	}
+
+	// 使用统一的超时常量统计在线模块数
+	onlineTime := time.Now().Add(-config.WireGuardOnlineTimeout)
+	if err := dh.db.Model(&models.Module{}).
+		Where("latest_handshake > ?", onlineTime).
+		Count(&stats.OnlineModules).Error; err != nil {
+		return nil, err
+	}
+
+	// 用户统计（这里可以根据实际需求调整）
+	stats.TotalUsers = 0
+	stats.OnlineUsers = 0
+
+	return stats, nil
+}
+
+// getModuleStatsFromWireGuard 从实时 WireGuard 状态获取模块统计信息
+func (dh *DashboardHandler) getModuleStatsFromWireGuard() (*ModuleStats, error) {
+	stats := &ModuleStats{}
+
+	// 创建WireGuard接口服务
+	interfaceService := services.NewWireGuardInterfaceService()
+
+	// 获取有状态的接口列表
+	interfaces, err := interfaceService.GetInterfacesWithStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	// 统计模块数据
+	for _, iface := range interfaces {
+		if len(iface.Modules) > 0 {
+			for _, module := range iface.Modules {
+				stats.TotalModules++
+
+				// 使用实时在线状态
+				if module.IsOnline {
+					stats.OnlineModules++
+				}
+
+				// 统计用户数据
+				stats.TotalUsers += int64(len(module.Users))
+				for _, user := range module.Users {
+					if user.IsActive {
+						stats.OnlineUsers++
+					}
+				}
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+// GetSystemHealth 获取系统健康状态（用于统计卡片）
 func (dh *DashboardHandler) GetSystemHealth(c *gin.Context) {
 	health, err := dh.dashboardService.GetSystemHealth()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取系统健康状态失败: " + err.Error(),
-		})
+		response.Error(c, http.StatusInternalServerError, "获取系统健康状态失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    health,
-	})
+	response.Success(c, health)
 }
 
-// GetModuleRanking 获取模块流量排行
-func (dh *DashboardHandler) GetModuleRanking(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "10")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
-		limit = 10
-	}
-
-	ranking, err := dh.dashboardService.GetModuleRanking(limit)
+// GetNetworkInterfaces 获取系统网络接口列表（用于创建接口时的网络接口选择）
+func (dh *DashboardHandler) GetNetworkInterfaces(c *gin.Context) {
+	interfaces, err := getSystemNetworkInterfaces()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取模块排行失败: " + err.Error(),
-		})
+		response.Error(c, http.StatusInternalServerError, "获取网络接口失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    ranking,
-	})
+	response.Success(c, interfaces)
 }
 
-// GetTrafficData 获取流量数据
-func (h *DashboardHandler) GetTrafficData(c *gin.Context) {
-	timeRange := c.DefaultQuery("range", "1h")
-
-	// 获取WireGuard接口服务
+// GetWireGuardInterfacesWithStatus 获取WireGuard接口列表（包含实时状态）
+func (dh *DashboardHandler) GetWireGuardInterfacesWithStatus(c *gin.Context) {
+	// 创建WireGuard接口服务
 	interfaceService := services.NewWireGuardInterfaceService()
 
-	// 获取所有接口的流量统计
-	allStats, err := interfaceService.GetAllInterfacesTrafficStats()
+	// 获取有状态的接口列表
+	interfaces, err := interfaceService.GetInterfacesWithStatus()
 	if err != nil {
-		response.InternalError(c, "获取流量统计失败: "+err.Error())
+		response.Error(c, http.StatusInternalServerError, "获取WireGuard接口状态失败: "+err.Error())
 		return
 	}
 
-	// 生成实时流量数据（这里可以实现更复杂的历史数据逻辑）
-	timeLabels := generateTimeLabels(timeRange)
-	uploadData := make([]float64, len(timeLabels))
-	downloadData := make([]float64, len(timeLabels))
-
-	// 如果有流量数据，模拟流量变化（实际应用中可以存储历史数据）
-	if len(allStats) > 0 {
-		var totalTx, totalRx uint64
-		for _, stat := range allStats {
-			totalTx += stat.TotalTx
-			totalRx += stat.TotalRx
-		}
-
-		// 基于总流量生成模拟的时间序列数据
-		for i := range timeLabels {
-			// 简单的模拟逻辑：基于当前总流量生成变化
-			uploadData[i] = float64(totalTx) / (1024 * 1024) / float64(len(timeLabels)) * (0.8 + 0.4*float64(i%3))
-			downloadData[i] = float64(totalRx) / (1024 * 1024) / float64(len(timeLabels)) * (0.9 + 0.2*float64(i%2))
-		}
-	}
-
-	result := map[string]interface{}{
-		"time_labels":   timeLabels,
-		"upload_data":   uploadData,
-		"download_data": downloadData,
-		"total_stats":   allStats,
-	}
-
-	response.Success(c, result)
+	response.Success(c, interfaces)
 }
 
-// generateTimeLabels 生成时间标签
-func generateTimeLabels(timeRange string) []string {
-	var labels []string
-	var count int
-	var interval time.Duration
+// 删除了额外的WireGuard状态API，保持简单，使用现有的两个API即可
 
-	switch timeRange {
-	case "1h":
-		count = 12
-		interval = 5 * time.Minute
-	case "6h":
-		count = 12
-		interval = 30 * time.Minute
-	case "24h":
-		count = 12
-		interval = 2 * time.Hour
-	default:
-		count = 12
-		interval = 5 * time.Minute
+// NetworkInterface 网络接口信息
+type NetworkInterface struct {
+	Name      string `json:"name"`       // 接口名称
+	IP        string `json:"ip"`         // IP地址
+	IsDefault bool   `json:"is_default"` // 是否为默认路由接口
+	IsUp      bool   `json:"is_up"`      // 是否启动
+}
+
+// getSystemNetworkInterfaces 获取系统网络接口
+func getSystemNetworkInterfaces() ([]NetworkInterface, error) {
+	var result []NetworkInterface
+
+	// 获取默认路由接口
+	defaultInterface := getDefaultRouteInterface()
+
+	// 获取所有网络接口
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
 	}
 
-	now := time.Now()
-	for i := count - 1; i >= 0; i-- {
-		t := now.Add(-time.Duration(i) * interval)
-		labels = append(labels, t.Format("15:04"))
+	for _, iface := range interfaces {
+		// 跳过回环接口和虚拟接口
+		if iface.Flags&net.FlagLoopback != 0 ||
+			strings.HasPrefix(iface.Name, "lo") ||
+			strings.HasPrefix(iface.Name, "docker") ||
+			strings.HasPrefix(iface.Name, "br-") ||
+			strings.HasPrefix(iface.Name, "veth") ||
+			strings.HasPrefix(iface.Name, "wg") {
+			continue
+		}
+
+		// 获取接口的IP地址
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		var ip string
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					ip = ipnet.IP.String()
+					break
+				}
+			}
+		}
+
+		// 只添加有IP地址的接口
+		if ip != "" {
+			result = append(result, NetworkInterface{
+				Name:      iface.Name,
+				IP:        ip,
+				IsDefault: iface.Name == defaultInterface,
+				IsUp:      iface.Flags&net.FlagUp != 0,
+			})
+		}
 	}
 
-	return labels
+	return result, nil
+}
+
+// getDefaultRouteInterface 获取默认路由的网络接口
+func getDefaultRouteInterface() string {
+	// 在Linux/macOS上使用ip route或route命令
+	cmd := exec.Command("sh", "-c", "ip route show default 2>/dev/null | awk '{print $5}' | head -1 || route get default 2>/dev/null | grep interface | awk '{print $2}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(output))
 }

@@ -13,7 +13,7 @@
 // - 与 module-management.js 紧密关联 (用户属于模块)
 //
 // 📦 主要功能：
-// - showModuleUsers() - 显示模块用户列表
+// - (已删除) showModuleUsers() - 用户信息已集成到卡片显示
 // - showAddUserModal() - 添加用户对话框
 // - submitAddUser() - 提交用户创建请求
 // - downloadUserConfig() - 下载用户配置文件
@@ -23,120 +23,9 @@
 // 📏 文件大小：18.0KB (原文件的 17.2%)
 // =====================================================
 
-// 模块用户管理功能
-async function showModuleUsers(moduleId) {
-    try {
-        const token = localStorage.getItem('access_token');
-        
-        // 获取模块信息
-        const moduleResponse = await fetch(`/api/v1/modules/${moduleId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        const moduleResult = await moduleResponse.json();
-        const module = moduleResult.data || moduleResult;
-        
-        // 获取用户列表
-        const usersResponse = await fetch(`/api/v1/modules/${moduleId}/users`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        const usersResult = await usersResponse.json();
-        const users = usersResult.data || [];
-        
-        // 创建模态框内容
-        let content = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 style="color: #f1f5f9;"><i class="fas fa-network-wired me-2"></i>模块: ${module.name}</h6>
-                <button class="btn btn-primary btn-sm" onclick="showAddUserModal(${moduleId})">
-                    <i class="fas fa-user-plus me-1"></i>添加用户
-                </button>
-            </div>
-            
-            <div class="table-responsive">
-                <table style="width: 100%; margin: 0; background: transparent; color: #e2e8f0;">
-                    <thead>
-                        <tr style="background: rgba(15, 23, 42, 0.8); border-bottom: 2px solid rgba(100, 116, 139, 0.4);">
-                            <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">用户名</th>
-                            <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">状态</th>
-                            <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">IP地址</th>
-                            <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">最后在线</th>
-                            <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">流量</th>
-                            <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody style="background: transparent;">
-                        ${users && users.length > 0 ? users.map(user => `
-                            <tr style="background: rgba(30, 41, 59, 0.3); border-bottom: 1px solid rgba(100, 116, 139, 0.2); transition: background-color 0.2s ease;" 
-                                onmouseover="this.style.background='rgba(30, 41, 59, 0.6)'" 
-                                onmouseout="this.style.background='rgba(30, 41, 59, 0.3)'">
-                                <td style="border: none; padding: 12px 16px;">
-                                    <div>
-                                        <div style="color: #f1f5f9; font-size: 14px; font-weight: 600;">${user.username}</div>
-                                        <small style="color: #94a3b8;">${user.email || '无邮箱'}</small>
-                                    </div>
-                                </td>
-                                <td style="border: none; padding: 12px 16px;">
-                                    <span class="badge bg-${user.status === 1 ? 'success' : 'secondary'}" style="font-size: 11px; padding: 4px 8px;">${user.status === 1 ? '在线' : '离线'}</span>
-                                    ${!user.is_active ? '<span class="badge bg-warning ms-1" style="font-size: 11px; padding: 4px 8px;">已停用</span>' : ''}
-                                </td>
-                                <td style="border: none; padding: 12px 16px;">
-                                    <span style="background: rgba(15, 23, 42, 0.8); color: #34d399; padding: 4px 8px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; font-weight: 500;">${user.ip_address}</span>
-                                </td>
-                                <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">${user.last_seen ? formatDateTime(user.last_seen) : '从未连接'}</td>
-                                <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">${formatBytes((user.total_rx_bytes || 0) + (user.total_tx_bytes || 0))}</td>
-                                <td style="border: none; padding: 12px 16px;">
-                                    <div style="display: flex; gap: 4px;">
-                                        <button onclick="downloadUserConfig(${user.id})" 
-                                                style="background: transparent; border: 1px solid #3b82f6; color: #60a5fa; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;"
-                                                onmouseover="this.style.background='rgba(59, 130, 246, 0.1)'"
-                                                onmouseout="this.style.background='transparent'">
-                                            <i class="fas fa-download"></i>
-                                        </button>
-                                        <button onclick="toggleUserStatus(${user.id}, ${!user.is_active})" 
-                                                style="background: transparent; border: 1px solid #f59e0b; color: #fbbf24; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;"
-                                                onmouseover="this.style.background='rgba(245, 158, 11, 0.1)'"
-                                                onmouseout="this.style.background='transparent'">
-                                            <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i>
-                                        </button>
-                                        <button onclick="deleteUser(${user.id})" 
-                                                style="background: transparent; border: 1px solid #ef4444; color: #f87171; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;"
-                                                onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'"
-                                                onmouseout="this.style.background='transparent'">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        `).join('') : `
-                            <tr style="background: rgba(30, 41, 59, 0.3); border-bottom: 1px solid rgba(100, 116, 139, 0.2);">
-                                <td colspan="6" style="border: none; padding: 2rem; text-align: center; color: #94a3b8;">
-                                    <i class="fas fa-users" style="margin-right: 8px; font-size: 16px;"></i>暂无用户
-                                </td>
-                            </tr>
-                        `}
-                    </tbody>
-                </table>
-            </div>
-        `;
-        
-        // 显示模态框
-        document.getElementById('userVPNContent').innerHTML = content;
-        const modalElement = document.getElementById('userVPNModal');
-        
-        if (!modalElement) {
-            console.error('找不到 userVPNModal 元素');
-            return;
-        }
-        
-        // 使用新的模态框管理器
-        ModalManager.show(modalElement);
-        
-    } catch (error) {
-        console.error('加载模块用户失败:', error);
-        alert('加载用户列表失败');
-    }
-}
+// 注意：showModuleUsers 函数已删除
+// 用户信息现在直接在接口-模块卡片中显示
+// 如需管理用户，请使用卡片中的用户管理功能
 
 // 显示添加用户模态框
 async function showAddUserModal(moduleId) {
@@ -155,8 +44,14 @@ async function showAddUserModal(moduleId) {
         const moduleResult = await moduleResponse.json();
         const module = moduleResult.data || moduleResult;
         
-        // 检查模块关联的接口状态
-        if (!await checkInterfaceEditPermission(module.interface_id, '添加用户')) {
+        // 添加用户是安全操作，不需要停止接口
+        // 只是获取接口信息用于验证模块有效性
+        const interfaceResponse = await fetch(`/api/v1/interfaces/${module.interface_id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!interfaceResponse.ok) {
+            alert('无法获取接口信息，请检查模块配置');
             return;
         }
     } catch (error) {
@@ -201,13 +96,13 @@ async function showAddUserModal(moduleId) {
                                 <label class="form-label" style="color: #e2e8f0;">允许访问网段</label>
                                 <select class="form-control" name="allowed_ips"
                                         style="background: rgba(15, 23, 42, 0.6); border-color: rgba(100, 116, 139, 0.3); color: #f1f5f9;">
-                                    <option value="10.50.0.0/24,192.168.50.0/24">VPN网段+内网穿透（推荐）</option>
-                                    <option value="10.50.0.0/24">仅VPN网段</option>
+                                    <option value="">自动生成（推荐）</option>
+                                    <option value="10.10.0.0/24,192.168.50.0/24">VPN网段+内网穿透</option>
+                                    <option value="10.10.0.0/24">仅VPN网段</option>
                                     <option value="0.0.0.0/0">全网访问</option>
-                                    <option value="192.168.0.0/16">本地网络</option>
                                 </select>
                                 <div class="form-text" style="color: #94a3b8;">
-                                    根据配置文档，推荐选择"VPN网段+内网穿透"以实现完整的内网访问功能
+                                    推荐选择"自动生成"，系统将智能组合VPN网段和模块内网段
                                 </div>
                             </div>
                         </div>
@@ -232,15 +127,22 @@ async function showAddUserModal(moduleId) {
                     <button class="btn btn-primary" onclick="submitAddUser()">
                         <i class="fas fa-plus me-1"></i>创建用户
                     </button>
-                    <button class="btn btn-secondary" onclick="showModuleUsers(${moduleId})">
-                        <i class="fas fa-arrow-left me-1"></i>返回
-                    </button>
                 </div>
             </div>
         </div>
     `;
     
     document.getElementById('userVPNContent').innerHTML = content;
+    
+    // 显示模态框
+    const modalElement = document.getElementById('userVPNModal');
+    if (!modalElement) {
+        console.error('找不到 userVPNModal 元素');
+        return;
+    }
+    
+    // 使用模态框管理器显示
+    ModalManager.show(modalElement);
 }
 
 // 提交添加用户
@@ -272,8 +174,19 @@ async function submitAddUser() {
         
         const result = await response.json();
         if (response.ok) {
-            alert('用户创建成功！');
-            showModuleUsers(data.module_id); // 返回用户列表
+            alert('用户创建成功！请查看接口卡片中的用户信息。');
+            // 关闭模态框
+            const modalElement = document.getElementById('userVPNModal');
+            if (modalElement) {
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+            }
+            // 刷新主页面数据以显示新用户
+            if (typeof loadAllData === 'function') {
+                loadAllData();
+            }
         } else {
             alert('创建失败：' + result.message);
         }
@@ -296,7 +209,18 @@ async function downloadUserConfig(userId) {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `user_${userId}_config.conf`;
+            
+            // 从响应头获取后端设置的文件名
+            let fileName = 'user_config.conf'; // 默认文件名
+            const contentDisposition = response.headers.get('Content-Disposition');
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    fileName = match[1].replace(/['"]/g, '');
+                }
+            }
+            
+            a.download = fileName;
             a.click();
             window.URL.revokeObjectURL(url);
         } else {
@@ -366,7 +290,6 @@ async function deleteUser(userId) {
 }
 
 // 全局导出用户管理函数
-window.showModuleUsers = showModuleUsers;
 window.showAddUserModal = showAddUserModal;
 window.submitAddUser = submitAddUser;
 window.downloadUserConfig = downloadUserConfig;

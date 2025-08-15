@@ -34,7 +34,6 @@ func SetupRoutes(
 	userService *auth.UserService,
 	jwtService *auth.JWTService,
 	sessionManager *auth.SessionManager,
-	cronScheduler *services.CronScheduler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -68,7 +67,7 @@ func SetupRoutes(
 	setupPageRoutes(r)
 
 	// 设置API路由
-	setupAPIRoutes(r, moduleHandler, dashboardHandler, configHandler, authHandler, userHandler, interfaceHandler, cronScheduler)
+	setupAPIRoutes(r, moduleHandler, dashboardHandler, configHandler, authHandler, userHandler, interfaceHandler)
 
 	return r
 }
@@ -81,7 +80,6 @@ func SetupAPIRoutes(
 	userService *auth.UserService,
 	jwtService *auth.JWTService,
 	sessionManager *auth.SessionManager,
-	cronScheduler *services.CronScheduler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -118,7 +116,7 @@ func SetupAPIRoutes(
 	})
 
 	// 设置API路由
-	setupAPIRoutes(r, moduleHandler, dashboardHandler, configHandler, authHandler, userHandler, interfaceHandler, cronScheduler)
+	setupAPIRoutes(r, moduleHandler, dashboardHandler, configHandler, authHandler, userHandler, interfaceHandler)
 
 	return r
 }
@@ -211,10 +209,8 @@ func setupAPIRoutes(
 	authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
 	interfaceHandler *handlers.InterfaceHandler,
-	cronScheduler *services.CronScheduler,
 ) {
-	// 创建同步处理器
-	syncHandler := handlers.NewSyncHandler(cronScheduler)
+
 	// API路由组
 	api := r.Group("/api/v1")
 	{
@@ -247,8 +243,6 @@ func setupAPIRoutes(
 			// WireGuard接口管理相关
 			setupInterfaceRoutes(auth, interfaceHandler)
 
-			// WireGuard状态同步相关
-			setupSyncRoutes(auth, syncHandler)
 		}
 	}
 }
@@ -264,8 +258,14 @@ func setupAuthRoutes(auth *gin.RouterGroup, authHandler *handlers.AuthHandler) {
 func setupDashboardRoutes(auth *gin.RouterGroup, dashboardHandler *handlers.DashboardHandler) {
 	auth.GET("/dashboard/stats", dashboardHandler.GetDashboardStats)
 	auth.GET("/dashboard/health", dashboardHandler.GetSystemHealth)
-	auth.GET("/dashboard/ranking", dashboardHandler.GetModuleRanking)
-	auth.GET("/dashboard/traffic", dashboardHandler.GetTrafficData) // 添加流量数据路由
+
+	// 保持简单，使用现有的两个API：/dashboard/stats 和 /system/wireguard-interfaces
+
+	// 系统相关
+	auth.GET("/system/network-interfaces", dashboardHandler.GetNetworkInterfaces) // 获取网络接口列表
+
+	// WireGuard接口状态 - 优化版本，返回实时状态
+	auth.GET("/system/wireguard-interfaces", dashboardHandler.GetWireGuardInterfacesWithStatus) // 获取WireGuard接口实时状态
 }
 
 // setupModuleRoutes 设置模块管理相关路由
@@ -352,18 +352,5 @@ func setupInterfaceRoutes(auth *gin.RouterGroup, interfaceHandler *handlers.Inte
 		interfaces.PUT("/:id/stop", interfaceHandler.StopInterface)
 		interfaces.DELETE("/:id", interfaceHandler.DeleteInterface) // 添加删除接口路由
 		interfaces.GET("/stats", interfaceHandler.GetInterfaceStats)
-	}
-}
-
-// setupSyncRoutes 设置WireGuard状态同步相关路由
-func setupSyncRoutes(auth *gin.RouterGroup, syncHandler *handlers.SyncHandler) {
-	sync := auth.Group("/sync")
-	{
-		// 保留实时统计接口 - 用于即时获取数据
-		sync.GET("/interfaces/:name/stats", syncHandler.GetInterfaceRealTimeStats)
-
-		// 保留cron监控接口 - 用于监控定时任务状态
-		sync.GET("/cron/stats", syncHandler.GetCronSchedulerStats)
-		sync.GET("/cron/jobs", syncHandler.GetRunningJobs)
 	}
 }
