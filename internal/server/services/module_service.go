@@ -268,20 +268,21 @@ func (ms *ModuleService) CreateModule(moduleData *models.ModuleCreateRequest) (*
 
 	// 创建模块记录
 	module := &models.Module{
-		Name:         moduleData.Name,
-		Location:     moduleData.Location,
-		Description:  moduleData.Description,
-		InterfaceID:  moduleData.InterfaceID,
-		PublicKey:    keyPair.PublicKey,
-		PrivateKey:   keyPair.PrivateKey,
-		IPAddress:    ipAddress,
-		LocalIP:      localIP,
-		Status:       models.ModuleStatusUnconfigured,
-		AllowedIPs:   moduleData.AllowedIPs,
-		PersistentKA: moduleData.PersistentKeepalive,
-		PresharedKey: presharedKey,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		Name:             moduleData.Name,
+		Location:         moduleData.Location,
+		Description:      moduleData.Description,
+		InterfaceID:      moduleData.InterfaceID,
+		PublicKey:        keyPair.PublicKey,
+		PrivateKey:       keyPair.PrivateKey,
+		IPAddress:        ipAddress,
+		LocalIP:          localIP,
+		Status:           models.ModuleStatusUnconfigured,
+		AllowedIPs:       moduleData.AllowedIPs,
+		PersistentKA:     moduleData.PersistentKeepalive,
+		PresharedKey:     presharedKey,
+		NetworkInterface: moduleData.NetworkInterface, // 新增：保存网卡名称
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 
 	// 保存到数据库
@@ -514,6 +515,11 @@ func (ms *ModuleService) DeleteModule(id uint) error {
 	// 保存接口ID用于后续配置更新
 	interfaceID := module.InterfaceID
 
+	// 先删除模块相关的用户VPN配置（硬删除）
+	if err := ms.db.Unscoped().Where("module_id = ?", id).Delete(&models.UserVPN{}).Error; err != nil {
+		return fmt.Errorf("删除模块用户VPN配置失败: %w", err)
+	}
+
 	// 释放IP地址
 	if err := ms.releaseIPForInterface(interfaceID, module.IPAddress); err != nil {
 		return fmt.Errorf("释放IP地址失败: %w", err)
@@ -531,7 +537,7 @@ func (ms *ModuleService) DeleteModule(id uint) error {
 	}
 
 	// 简化：使用标准日志而不是数据库日志
-	fmt.Printf("模块删除 - 模块ID: %d, 名称: %s\n", id, module.Name)
+	fmt.Printf("模块删除 - 模块ID: %d, 名称: %s, 已清理相关用户VPN配置\n", id, module.Name)
 
 	return nil
 }
@@ -554,35 +560,6 @@ func (ms *ModuleService) UpdateModuleStatus(id uint, status models.ModuleStatus)
 	// 记录状态变更日志
 	// 简化：使用标准日志而不是数据库日志
 	fmt.Printf("状态变更为: %s - 模块ID: %d\n", status.String(), id)
-
-	return nil
-}
-
-// UpdateModuleTraffic 更新模块流量统计
-func (ms *ModuleService) UpdateModuleTraffic(id uint, rxBytes, txBytes uint64) error {
-	result := ms.db.Model(&models.Module{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"total_rx_bytes": rxBytes,
-		"total_tx_bytes": txBytes,
-		"last_seen":      time.Now(),
-	})
-
-	if result.Error != nil {
-		return fmt.Errorf("更新模块流量失败: %w", result.Error)
-	}
-
-	return nil
-}
-
-// UpdateModuleHandshake 更新模块握手时间
-func (ms *ModuleService) UpdateModuleHandshake(id uint, handshakeTime time.Time) error {
-	result := ms.db.Model(&models.Module{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"latest_handshake": handshakeTime,
-		"last_seen":        time.Now(),
-	})
-
-	if result.Error != nil {
-		return fmt.Errorf("更新模块握手时间失败: %w", result.Error)
-	}
 
 	return nil
 }
@@ -729,19 +706,6 @@ func (ms *ModuleService) GetTotalTraffic() (map[string]uint64, error) {
 	traffic["total"] = totalRx + totalTx
 
 	return traffic, nil
-}
-
-// GetRecentlyActiveModules 获取最近活跃的模块
-func (ms *ModuleService) GetRecentlyActiveModules(limit int) ([]models.Module, error) {
-	var modules []models.Module
-	if err := ms.db.Where("last_seen IS NOT NULL").
-		Order("last_seen DESC").
-		Limit(limit).
-		Find(&modules).Error; err != nil {
-		return nil, fmt.Errorf("查询最近活跃模块失败: %w", err)
-	}
-
-	return modules, nil
 }
 
 // SyncModuleStatus 同步模块状态 (从WireGuard获取实际状态)

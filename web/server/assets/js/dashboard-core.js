@@ -4,30 +4,29 @@
 //
 // 📋 功能概述：
 // - 仪表板的核心显示和数据加载逻辑
-// - ECharts图表初始化和数据更新
 // - 系统状态监控和统计数据展示
+// - 接口-模块网格数据刷新
 //
 // 🔗 依赖关系：
 // - 依赖：shared-utils.js (工具函数)
-// - 依赖：echarts (图表库)
-// - 依赖：module-management.js (updateModulesTable函数)
+// - 依赖：api.js (统一API管理)
+// - 依赖：interface-management.js (接口-模块网格)
 // - 最后加载，协调所有模块的数据显示
 //
 // 📦 主要功能：
 // - loadAllData() - 加载所有仪表板数据
-// - initCharts() - 初始化图表（已删除ECharts）
 // - updateStatsCards() - 更新统计卡片
 // - updateSystemHealth() - 更新系统健康状态
+// - updateHeaderStatus() - 更新头部状态
+// - updateTime() - 更新时间显示
 //
-// 📏 文件大小：15.9KB (原文件的 15.2%)
+// 📏 文件大小：约8KB (优化后)
 // =====================================================
 
 
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
-    initCharts();
-    
     // 初始化接口-模块网格
     if (typeof renderInterfaceModuleGrid === 'function') {
         renderInterfaceModuleGrid();
@@ -49,91 +48,57 @@ function updateTime() {
     document.getElementById('currentTime').textContent = timeString;
 }
 
-// 初始化图表（已删除ECharts相关功能）
-function initCharts() {
-    // 图表功能已删除，保留函数避免错误
-    console.log('图表功能已删除');
-}
+
 
 
 
 // 加载所有数据
 async function loadAllData() {
     try {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
+        // 检查认证状态
+        if (!api.auth.isAuthenticated()) {
             window.location.href = '/login';
             return;
         }
 
-        // 只调用一个API获取所有数据
-        const statsResponse = await fetch('/api/v1/dashboard/stats', { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
+        apiHelper.showLoading('加载仪表板数据...');
 
-        if (statsResponse.ok) {
-            const stats = await statsResponse.json();
-            console.log('Dashboard stats received:', stats);
-            
-            // 更新统计卡片
-            updateStatsCards(stats);
-            
-            // 更新系统健康状态
-            updateSystemHealth(stats);
-            
-            // 更新头部状态
-            updateHeaderStatus(stats);
-            
-            // 统计接口已经包含所有必要数据，无需额外调用
-            console.log('Dashboard stats loaded successfully');
-        } else {
-            console.log('Stats response failed, dashboard data unavailable');
-        }
-
+        // 使用新的API管理系统获取仪表板统计数据
+        const stats = await api.system.getDashboardStats();
+        console.log('Dashboard stats received:', stats);
+        
+        // 更新统计卡片
+        updateStatsCards(stats);
+        
+        // 更新系统健康状态
+        updateSystemHealth(stats);
+        
+        // 更新头部状态
+        updateHeaderStatus(stats);
+        
+        console.log('Dashboard stats loaded successfully');
+        
         // 刷新接口-模块网格
         if (typeof refreshInterfaceModuleGrid === 'function') {
             refreshInterfaceModuleGrid();
         }
 
+        apiHelper.hideLoading();
+
     } catch (error) {
         console.error('加载仪表板数据失败:', error);
+        apiHelper.hideLoading();
+        
         // 显示错误提示
         if (typeof showToast === 'function') {
             showToast('加载数据失败，请检查网络连接', 'error');
         } else {
-            console.error('showToast function not available');
+            apiHelper.handleError(error, '加载仪表板数据失败');
         }
     }
 }
 
-// 直接加载模块数据的函数（已优化，使用带状态的接口API）
-async function loadModulesDirectly() {
-    try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/system/wireguard-interfaces', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            const interfaces = result.data || result;
-            console.log('Direct interfaces fetch (with status):', interfaces);
-            
-            // 从接口数据中提取模块信息
-            const allModules = [];
-            interfaces.forEach(iface => {
-                if (iface.modules && Array.isArray(iface.modules)) {
-                    allModules.push(...iface.modules);
-                }
-            });
-            console.log('Extracted modules:', allModules);
-        } else {
-            console.log('Direct interfaces fetch failed');
-        }
-    } catch (error) {
-        console.error('直接加载接口数据失败:', error);
-    }
-}
+
 
 // 更新头部服务状态
 function updateHeaderStatus(stats) {
@@ -216,31 +181,7 @@ function updateStatsCards(stats) {
     }
 }
 
-// 更新状态图表
-function updateStatusChart(statusData) {
-    if (!statusChart) return;
-    
-    const chartData = statusData.filter(item => item.status !== 'total').map(item => ({
-        value: item.count,
-        name: getChineseStatusName(item.status),
-        itemStyle: { color: item.color }
-    }));
-    
-    const option = statusChart.getOption();
-    option.series[0].data = chartData;
-    statusChart.setOption(option);
-}
 
-// 获取中文状态名称
-function getChineseStatusName(status) {
-    switch(status) {
-        case 'online': return '在线';
-        case 'offline': return '离线';
-        case 'warning': return '警告';
-        case 'unconfigured': return '未配置';
-        default: return status;
-    }
-}
 
 // 更新系统健康状态
 function updateSystemHealth(stats) {
@@ -266,56 +207,7 @@ function updateSystemHealth(stats) {
     }
 }
 
-// 更新系统信息显示
-function updateSystemInfo(interfaceStats) {
-    const data = interfaceStats.data || interfaceStats;
-    
-    // 更新接口统计信息
-    const totalInterfacesEl = document.getElementById('totalInterfaces');
-    const activeInterfacesEl = document.getElementById('activeInterfaces');
-    
-    if (totalInterfacesEl) {
-        totalInterfacesEl.textContent = data.total_interfaces || 0;
-    }
-    if (activeInterfacesEl) {
-        activeInterfacesEl.textContent = data.active_interfaces || 0;
-    }
-    
-    // 格式化容量显示
-    const usedCapacity = data.used_capacity || 0;
-    const totalCapacity = data.total_capacity || 0;
-    const capacityText = totalCapacity > 0 ? `${usedCapacity}/${totalCapacity}` : '--';
-    
-    const interfaceCapacityEl = document.getElementById('interfaceCapacity');
-    if (interfaceCapacityEl) {
-        interfaceCapacityEl.textContent = capacityText;
-    }
-    
-    // 更新网络配置显示
-    if (data.interfaces && data.interfaces.length > 0) {
-        // 如果有多个接口，显示所有接口的端口信息
-        const ports = data.interfaces.map(iface => iface.listen_port).join(', ');
-        const networks = data.interfaces.map(iface => iface.network).join(', ');
-        const dnsServers = [...new Set(data.interfaces.map(iface => iface.dns).filter(dns => dns))].join(', ');
-        
-        const networkConfigEl = document.getElementById('networkConfig');
-        const portConfigEl = document.getElementById('portConfig');
-        const dnsConfigEl = document.getElementById('dnsConfig');
-        
-        if (networkConfigEl) networkConfigEl.textContent = networks || '无接口';
-        if (portConfigEl) portConfigEl.textContent = ports || '无端口';
-        if (dnsConfigEl) dnsConfigEl.textContent = dnsServers || '8.8.8.8';
-    } else {
-        // 如果没有接口数据，显示提示信息
-        const networkConfigEl = document.getElementById('networkConfig');
-        const portConfigEl = document.getElementById('portConfig');
-        const dnsConfigEl = document.getElementById('dnsConfig');
-        
-        if (networkConfigEl) networkConfigEl.textContent = '暂无接口';
-        if (portConfigEl) portConfigEl.textContent = '暂无端口';
-        if (dnsConfigEl) dnsConfigEl.textContent = '8.8.8.8';
-    }
-}
+
 
 
 
@@ -330,10 +222,18 @@ async function refreshAllData() {
 }
 
 // 退出登录
-function logout() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
+async function logout() {
+    try {
+        // 调用后端登出API
+        await api.auth.logout();
+    } catch (error) {
+        console.warn('登出API调用失败，继续本地清理:', error);
+    } finally {
+        // 清理本地认证信息
+        api.auth.clearAuth();
+        // 跳转到登录页
+        window.location.href = '/login';
+    }
 }
 
 // 全局导出核心仪表板函数

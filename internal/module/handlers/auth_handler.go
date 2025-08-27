@@ -61,8 +61,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 设置cookie
-	c.SetCookie("session_token", token, 3600*24, "/", "", false, true)
+	// 设置cookie - 使用module_token保持一致性
+	c.SetCookie("module_token", token, 3600*24, "/", "", false, true)
 
 	// 记录登录日志
 	log.Printf("用户 %s 登录成功", user.Username)
@@ -79,8 +79,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Logout 处理登出请求
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// 清除cookie
-	c.SetCookie("session_token", "", -1, "/", "", false, true)
+	// 清除cookie - 使用module_token保持一致性
+	c.SetCookie("module_token", "", -1, "/", "", false, true)
 
 	// 记录登出日志
 	if username, exists := c.Get("username"); exists {

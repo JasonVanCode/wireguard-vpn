@@ -53,6 +53,8 @@ func SetupModuleRoutes(moduleService *services.ModuleService, statusService *ser
 	// 创建处理器
 	authHandler := handlers.NewAuthHandler(db)
 	moduleHandler := handlers.NewModuleHandler(moduleService, statusService)
+	// 创建仪表板控制器
+	dashboardHandler := handlers.NewDashboardHandler(statusService, moduleService)
 
 	// 健康检查 (无需认证)
 	router.GET("/health", func(c *gin.Context) {
@@ -117,11 +119,6 @@ func SetupModuleRoutes(moduleService *services.ModuleService, statusService *ser
 
 			// 状态相关
 			auth.GET("/status", moduleHandler.GetStatus)
-			auth.POST("/status", moduleHandler.UpdateStatus)
-
-			// 配置相关
-			auth.GET("/config", moduleHandler.GetConfig)
-			auth.POST("/config", moduleHandler.UpdateConfig)
 
 			// 流量统计
 			auth.GET("/stats", moduleHandler.GetStats)
@@ -130,6 +127,22 @@ func SetupModuleRoutes(moduleService *services.ModuleService, statusService *ser
 			auth.POST("/wireguard/start", moduleHandler.StartWireGuard)
 			auth.POST("/wireguard/stop", moduleHandler.StopWireGuard)
 			auth.POST("/wireguard/restart", moduleHandler.RestartWireGuard)
+
+			// Dashboard相关API
+			auth.GET("/dashboard/stats", dashboardHandler.GetDashboardStats)
+			auth.GET("/dashboard/vpn-status", dashboardHandler.GetVPNStatus)
+			auth.GET("/dashboard/traffic-stats", dashboardHandler.GetTrafficStats)
+			auth.GET("/dashboard/network-metrics", dashboardHandler.GetNetworkMetrics)
+			auth.GET("/dashboard/system-status", dashboardHandler.GetSystemStatus)
+			auth.POST("/dashboard/refresh", dashboardHandler.RefreshDashboard)
+
+			// WireGuard控制接口
+			auth.GET("/wireguard/interfaces", dashboardHandler.GetWireGuardInterfaces)
+			auth.POST("/wireguard/control", dashboardHandler.ControlWireGuard)
+			auth.POST("/wireguard/config/upload", dashboardHandler.UploadWireGuardConfig)
+
+			// 配置文件读取接口
+			auth.GET("/wireguard/config/:interface", dashboardHandler.GetWireGuardConfigFile)
 		}
 	}
 

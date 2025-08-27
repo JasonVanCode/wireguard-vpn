@@ -275,7 +275,6 @@ func setupModuleRoutes(auth *gin.RouterGroup, moduleHandler *handlers.ModuleHand
 		modules.GET("", moduleHandler.GetModules)
 		modules.POST("" /* middleware.RequireRole("admin"), */, moduleHandler.CreateModule) // 注释掉角色权限检查
 		modules.GET("/stats", moduleHandler.GetModuleStats)
-		modules.GET("/recent", moduleHandler.GetRecentlyActiveModules)
 		modules.POST("/sync" /* middleware.RequireRole("admin"), */, moduleHandler.SyncModuleStatus)      // 注释掉角色权限检查
 		modules.DELETE("/batch" /* middleware.RequireRole("admin"), */, moduleHandler.BatchDeleteModules) // 注释掉角色权限检查
 

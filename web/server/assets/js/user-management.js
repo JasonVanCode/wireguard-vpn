@@ -29,36 +29,6 @@
 
 // 显示添加用户模态框
 async function showAddUserModal(moduleId) {
-    // 🔒 安全检查：先获取模块信息，检查接口状态
-    try {
-        const token = localStorage.getItem('access_token');
-        const moduleResponse = await fetch(`/api/v1/modules/${moduleId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (!moduleResponse.ok) {
-            alert('无法获取模块信息');
-            return;
-        }
-        
-        const moduleResult = await moduleResponse.json();
-        const module = moduleResult.data || moduleResult;
-        
-        // 添加用户是安全操作，不需要停止接口
-        // 只是获取接口信息用于验证模块有效性
-        const interfaceResponse = await fetch(`/api/v1/interfaces/${module.interface_id}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (!interfaceResponse.ok) {
-            alert('无法获取接口信息，请检查模块配置');
-            return;
-        }
-    } catch (error) {
-        console.error('检查模块状态失败:', error);
-        alert('无法检查模块状态，建议先停止相关接口再进行操作');
-        return;
-    }
     
     const content = `
         <div class="row">
@@ -162,136 +132,80 @@ async function submitAddUser() {
             delete data.expires_at;
         }
         
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/user-vpn', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(data)
-        });
+        apiHelper.showLoading('创建用户中...');
+        const result = await api.userVPN.createUserVPN(data);
         
-        const result = await response.json();
-        if (response.ok) {
-            alert('用户创建成功！请查看接口卡片中的用户信息。');
-            // 关闭模态框
-            const modalElement = document.getElementById('userVPNModal');
-            if (modalElement) {
-                const modal = bootstrap.Modal.getInstance(modalElement);
-                if (modal) {
-                    modal.hide();
-                }
+        apiHelper.handleSuccess('用户VPN创建成功！请查看接口卡片中的用户信息。');
+        
+        // 关闭模态框
+        const modalElement = document.getElementById('userVPNModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
             }
-            // 刷新主页面数据以显示新用户
-            if (typeof loadAllData === 'function') {
-                loadAllData();
-            }
-        } else {
-            alert('创建失败：' + result.message);
         }
+        
+        // 刷新主页面数据以显示新用户
+        if (typeof loadAllData === 'function') {
+            loadAllData();
+        }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('创建用户失败:', error);
-        alert('网络错误，请重试');
-    }
-}
-
-// 下载用户配置
-async function downloadUserConfig(userId) {
-    try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/user-vpn/${userId}/config`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            
-            // 从响应头获取后端设置的文件名
-            let fileName = 'user_config.conf'; // 默认文件名
-            const contentDisposition = response.headers.get('Content-Disposition');
-            if (contentDisposition) {
-                const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                if (match && match[1]) {
-                    fileName = match[1].replace(/['"]/g, '');
-                }
-            }
-            
-            a.download = fileName;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        } else {
-            alert('下载失败');
-        }
-    } catch (error) {
-        console.error('下载用户配置失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '创建用户失败');
     }
 }
 
 // 切换用户状态
 async function toggleUserStatus(userId, activate) {
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/user-vpn/${userId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ is_active: activate })
-        });
+        apiHelper.showLoading(activate ? '激活用户中...' : '停用用户中...');
+        await api.users.updateUser(userId, { is_active: activate });
         
-        const result = await response.json();
-        if (response.ok) {
-            alert(activate ? '用户已激活' : '用户已停用');
-            // 刷新当前显示的用户列表
-            const currentModal = document.querySelector('#userVPNModal .modal-body');
-            if (currentModal) {
-                // 重新加载当前模块的用户列表
-                location.reload(); // 简单的刷新，也可以优化为只刷新列表
-            }
-        } else {
-            alert('操作失败：' + result.message);
+        apiHelper.handleSuccess(activate ? '用户已激活' : '用户已停用');
+        
+        // 刷新当前显示的用户列表
+        const currentModal = document.querySelector('#userVPNModal .modal-body');
+        if (currentModal) {
+            // 重新加载当前模块的用户列表
+            location.reload(); // 简单的刷新，也可以优化为只刷新列表
         }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('切换用户状态失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '切换用户状态失败');
     }
 }
 
 // 删除用户
 async function deleteUser(userId) {
-    if (!confirm('确定要删除此用户吗？此操作不可撤销！')) {
+    const confirmed = await apiHelper.confirm('确定要删除此用户吗？此操作不可撤销！', '删除用户');
+    if (!confirmed) {
         return;
     }
     
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/user-vpn/${userId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('删除用户中...');
+        await api.users.deleteUser(userId);
         
-        const result = await response.json();
-        if (response.ok) {
-            alert('用户删除成功！');
-            location.reload(); // 刷新页面
-        } else {
-            alert('删除失败：' + result.message);
-        }
+        apiHelper.handleSuccess('用户删除成功！');
+        location.reload(); // 刷新页面
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('删除用户失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '删除用户失败');
     }
 }
 
 // 全局导出用户管理函数
 window.showAddUserModal = showAddUserModal;
 window.submitAddUser = submitAddUser;
-window.downloadUserConfig = downloadUserConfig;
 window.toggleUserStatus = toggleUserStatus;
 window.deleteUser = deleteUser; 

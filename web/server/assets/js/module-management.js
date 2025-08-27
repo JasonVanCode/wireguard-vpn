@@ -58,50 +58,43 @@ async function showAddModuleModal() {
 // 加载WireGuard接口列表（使用带状态的接口API）
 async function loadWireGuardInterfaces() {
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/system/wireguard-interfaces', {
-            headers: { 'Authorization': `Bearer ${token}` }
+        apiHelper.showLoading('加载接口列表...');
+        const result = await api.wireguard.getInterfaces();
+        console.log('Interfaces loaded (with status):', result);
+        const interfaces = result.data || result.interfaces || [];
+        const select = document.getElementById('moduleInterface');
+        
+        // 清空现有选项
+        select.innerHTML = '<option value="">选择WireGuard接口</option>';
+        
+        // 添加接口选项（包含实时状态信息）
+        interfaces.forEach(iface => {
+            const option = document.createElement('option');
+            option.value = iface.id;
+            
+            // 显示接口状态信息
+            const statusText = iface.status === 1 ? '运行中' : '已停止';
+            option.textContent = `${iface.name} - ${iface.description} (${iface.network}) [${statusText}]`;
+            option.dataset.maxPeers = iface.max_peers;
+            option.dataset.totalPeers = iface.total_peers;
+            
+            // 如果接口已满，禁用选项
+            if (iface.total_peers >= iface.max_peers) {
+                option.disabled = true;
+                option.textContent += ' [已满]';
+            } else {
+                option.textContent += ` [${iface.total_peers}/${iface.max_peers}]`;
+            }
+            
+            select.appendChild(option);
         });
-
-        if (response.ok) {
-            const result = await response.json();
-            console.log('Interfaces loaded (with status):', result);
-            const interfaces = result.data || result.interfaces || [];
-            const select = document.getElementById('moduleInterface');
-            
-            // 清空现有选项
-            select.innerHTML = '<option value="">选择WireGuard接口</option>';
-            
-            // 添加接口选项（包含实时状态信息）
-            interfaces.forEach(iface => {
-                const option = document.createElement('option');
-                option.value = iface.id;
-                
-                // 显示接口状态信息
-                const statusText = iface.status === 1 ? '运行中' : '已停止';
-                option.textContent = `${iface.name} - ${iface.description} (${iface.network}) [${statusText}]`;
-                option.dataset.maxPeers = iface.max_peers;
-                option.dataset.totalPeers = iface.total_peers;
-                
-                // 如果接口已满，禁用选项
-                if (iface.total_peers >= iface.max_peers) {
-                    option.disabled = true;
-                    option.textContent += ' [已满]';
-                } else {
-                    option.textContent += ` [${iface.total_peers}/${iface.max_peers}]`;
-                }
-                
-                select.appendChild(option);
-            });
-            
-            console.log(`加载了 ${interfaces.length} 个接口（包含状态信息）`);
-        } else {
-            console.error('加载接口列表失败:', response.status, response.statusText);
-            const select = document.getElementById('moduleInterface');
-            select.innerHTML = '<option value="">加载接口失败，请刷新重试</option>';
-        }
+        
+        console.log(`加载了 ${interfaces.length} 个接口（包含状态信息）`);
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('加载接口列表失败:', error);
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '加载接口列表失败');
         const select = document.getElementById('moduleInterface');
         select.innerHTML = '<option value="">网络错误，请刷新重试</option>';
     }
@@ -159,40 +152,35 @@ async function submitAddModule() {
     }
 
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/modules', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            alert(`模块创建成功！\n\n配置信息：\n- 模块名称：${data.name}\n- 内网网段：${data.allowed_ips}\n- 配置已自动生成并分配到指定接口`);
-            bootstrap.Modal.getInstance(document.getElementById('addModuleModal')).hide();
-            form.reset();
-            // 触发主页面数据刷新
-            if (typeof loadAllData === 'function') {
-                loadAllData();
-            }
-        } else {
-            alert('创建失败：' + result.message);
+        apiHelper.showLoading('创建模块中...');
+        const result = await api.modules.createModule(data);
+        
+        apiHelper.handleSuccess(`模块创建成功！\n\n配置信息：\n- 模块名称：${data.name}\n- 内网网段：${data.allowed_ips}\n- 配置已自动生成并分配到指定接口`);
+        
+        bootstrap.Modal.getInstance(document.getElementById('addModuleModal')).hide();
+        form.reset();
+        
+        // 触发主页面数据刷新
+        if (typeof loadAllData === 'function') {
+            loadAllData();
         }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('创建模块失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '创建模块失败');
     }
 }
 
 // 下载模块配置
 async function downloadModuleConfig(id) {
     try {
-        const token = localStorage.getItem('access_token');
+        apiHelper.showLoading('准备下载配置...');
+        
+        // 使用fetch直接下载文件（因为需要处理blob和响应头）
         const response = await fetch(`/api/v1/modules/${id}/config`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${api.wireguard.getAuthToken()}` }
         });
         
         if (response.ok) {
@@ -214,12 +202,16 @@ async function downloadModuleConfig(id) {
             a.download = fileName;
             a.click();
             window.URL.revokeObjectURL(url);
+            
+            apiHelper.hideLoading();
+            apiHelper.handleSuccess('模块配置文件下载成功！');
         } else {
-            alert('下载失败');
+            throw new Error('下载失败');
         }
     } catch (error) {
         console.error('下载模块配置失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '下载模块配置失败');
     }
 }
 
@@ -230,7 +222,8 @@ function editModule(id) {
 
 // 删除模块
 async function deleteModule(id) {
-    if (!confirm('确定要删除此模块吗？此操作不可撤销！')) {
+    const confirmed = await apiHelper.confirm('确定要删除此模块吗？此操作不可撤销！', '删除模块');
+    if (!confirmed) {
         return;
     }
     
@@ -241,36 +234,29 @@ async function deleteModule(id) {
     deleteBtn.disabled = true;
     
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/modules/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('删除模块中...');
+        await api.modules.deleteModule(id);
         
-        const result = await response.json();
-        if (response.ok) {
-            alert('模块删除成功！');
+        apiHelper.handleSuccess('模块删除成功！');
+        
+        // 触发主页面数据刷新
+        if (typeof loadAllData === 'function') {
+            console.log('删除成功，开始刷新数据...');
+            await loadAllData();
             
-            // 触发主页面数据刷新
-            if (typeof loadAllData === 'function') {
-                console.log('删除成功，开始刷新数据...');
-                await loadAllData();
-                
-                // 确保模块表格得到更新
-                setTimeout(() => {
-                    console.log('延迟刷新确保数据同步...');
-                    loadAllData();
-                }, 1000);
-            }
-        } else {
-            alert('删除失败：' + result.message);
-            // 恢复按钮状态
-            deleteBtn.innerHTML = originalContent;
-            deleteBtn.disabled = false;
+            // 确保模块表格得到更新
+            setTimeout(() => {
+                console.log('延迟刷新确保数据同步...');
+                loadAllData();
+            }, 1000);
         }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('删除模块失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '删除模块失败');
+    } finally {
         // 恢复按钮状态
         deleteBtn.innerHTML = originalContent;
         deleteBtn.disabled = false;

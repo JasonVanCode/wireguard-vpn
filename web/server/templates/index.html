@@ -321,6 +321,22 @@
                                     <div class="form-text">WireGuard保活包发送间隔</div>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="moduleNetworkInterface" class="form-label">模块网卡名称 *</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="moduleNetworkInterface" name="network_interface" 
+                                               value="wlan0" placeholder="例如：wlan0, eth0, ens3" required>
+                                        <button type="button" class="btn btn-outline-secondary" id="detectModuleNetworkInterface" title="自动检测网卡">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">
+                                        <strong>关键配置</strong>：模块设备使用的网卡名称，用于生成PostUp/PostDown规则。
+                                        <br>根据配置文档，这将生成类似：iptables -o wlan0 -j ACCEPT 的规则
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
 
@@ -561,13 +577,16 @@
     <!-- 1. 共享工具函数 (必须最先加载) -->
     <script src="/assets/js/shared-utils.js"></script>
     
-    <!-- 2. 功能模块 (可以并行加载) -->
+    <!-- 2. API管理 (必须最先加载) -->
+    <script src="/assets/js/api.js"></script>
+    
+    <!-- 3. 功能模块 (可以并行加载) -->
     <script src="/assets/js/module-management.js"></script>
     <script src="/assets/js/interface-management.js"></script>
     <script src="/assets/js/user-management.js"></script>
     <!-- <script src="/assets/js/system-config.js"></script> -->
     
-    <!-- 3. 核心仪表板 (最后加载) -->
+    <!-- 4. 核心仪表板 (最后加载) -->
     <script src="/assets/js/dashboard-core.js"></script>
 </body>
 </html>

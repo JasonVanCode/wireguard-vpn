@@ -31,17 +31,15 @@ func AuthMiddleware(authHandler *handlers.AuthHandler) gin.HandlerFunc {
 			return
 		}
 
-		// 验证token格式（简化验证：检查token长度）
+		// 验证token格式（检查token长度）
 		if len(token) < 20 {
 			response.Unauthorized(c, "无效token")
 			c.Abort()
 			return
 		}
 
-		// 这里简化处理，实际应该从数据库或缓存中验证token
-		// 暂时使用默认管理员信息
-		// 可以通过authHandler获取数据库实例进行验证
-		// 这里为了简化，直接设置默认用户信息
+		// 验证token有效性 - 这里简化处理，实际应该从数据库验证
+		// 暂时使用默认管理员信息，后续可以扩展为数据库验证
 		c.Set("username", "admin")
 		c.Set("user_id", uint(1))
 		c.Set("role", models.LocalUserRoleAdmin)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -98,6 +99,24 @@ type NetworkInterface struct {
 	TxBytes uint64 `json:"tx_bytes"`
 }
 
+// VPNStatus VPN状态信息
+type VPNStatus struct {
+	Status            string    `json:"status"`             // running/stopped
+	ConnectionQuality string    `json:"connection_quality"` // excellent/good/fair/poor
+	Latency           int       `json:"latency"`            // 延迟(ms)
+	LastHandshake     time.Time `json:"last_handshake"`     // 最后握手时间
+	Uptime            string    `json:"uptime"`             // 运行时间
+}
+
+// NetworkMetrics 网络性能指标
+type NetworkMetrics struct {
+	Latency    int     `json:"latency"`     // 延迟(ms)
+	PacketLoss float64 `json:"packet_loss"` // 丢包率(%)
+	Bandwidth  float64 `json:"bandwidth"`   // 带宽(Mbps)
+	Quality    string  `json:"quality"`     // 网络质量
+	Status     string  `json:"status"`      // 连接状态
+}
+
 // GetWireGuardStatus 获取WireGuard状态
 func (ss *StatusService) GetWireGuardStatus() (*WireGuardStatus, error) {
 	status := &WireGuardStatus{
@@ -106,17 +125,123 @@ func (ss *StatusService) GetWireGuardStatus() (*WireGuardStatus, error) {
 		LastUpdated: time.Now(),
 	}
 
-	// 检查WireGuard是否运行
-	cmd := exec.Command("wg", "show", "wg0")
-	output, err := cmd.Output()
-	if err != nil {
-		return status, nil // WireGuard未运行
+	// 首先检查网络接口是否存在
+	if _, err := os.Stat("/sys/class/net/wg0"); err != nil {
+		status.Status = "stopped"
+		return status, nil
 	}
 
-	status.Status = "running"
+	// 使用wg show wg0 dump命令获取更简洁的输出
+	cmd := exec.Command("wg", "show", "wg0", "dump")
+	output, err := cmd.Output()
+	if err != nil {
+		// 如果dump命令失败，尝试普通的wg show命令
+		cmd = exec.Command("wg", "show", "wg0")
+		output, err = cmd.Output()
+		if err != nil {
+			// 接口存在但命令失败，可能是配置问题
+			status.Status = "configured"
+			return status, nil
+		}
+		// 使用普通格式解析
+		return ss.parseWireGuardOutput(string(output))
+	}
 
-	// 解析WireGuard输出
-	lines := strings.Split(string(output), "\n")
+	// 使用dump格式解析
+	return ss.parseWireGuardDump(string(output))
+}
+
+// parseWireGuardDump 解析wg show wg0 dump输出
+func (ss *StatusService) parseWireGuardDump(output string) (*WireGuardStatus, error) {
+	status := &WireGuardStatus{
+		Interface:   "wg0",
+		Status:      "running",
+		LastUpdated: time.Now(),
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) < 1 {
+		return status, nil
+	}
+
+	// 第一行是interface信息
+	// 格式: private_key public_key listen_port status
+	interfaceFields := strings.Fields(lines[0])
+	if len(interfaceFields) >= 4 {
+		status.PublicKey = interfaceFields[1]
+		if port, err := strconv.Atoi(interfaceFields[2]); err == nil {
+			status.ListenPort = port
+		}
+		// interfaceFields[3] 是状态 (off/on)
+		if len(interfaceFields) >= 4 {
+			if interfaceFields[3] == "off" {
+				status.Status = "stopped"
+			} else {
+				status.Status = "running"
+			}
+		}
+	}
+
+	// 后续行是peer信息
+	// 格式: public_key preshared_key endpoint allowed_ips last_handshake rx_bytes tx_bytes persistent_keepalive
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) >= 8 {
+			peer := &PeerStatus{
+				PublicKey: fields[0],
+				Endpoint:  fields[2],
+			}
+
+			// 解析allowed ips
+			if len(fields) >= 4 {
+				peer.AllowedIPs = strings.Split(fields[3], ",")
+			}
+
+			// 解析last handshake (Unix timestamp)
+			if len(fields) >= 5 {
+				if timestamp, err := strconv.ParseInt(fields[4], 10, 64); err == nil {
+					peer.LatestHandshake = time.Unix(timestamp, 0)
+				}
+			}
+
+			// 解析流量统计
+			if len(fields) >= 7 {
+				if rx, err := strconv.ParseUint(fields[5], 10, 64); err == nil {
+					peer.TransferRx = rx
+				}
+				if tx, err := strconv.ParseUint(fields[6], 10, 64); err == nil {
+					peer.TransferTx = tx
+				}
+			}
+
+			// 解析persistent keepalive
+			if len(fields) >= 8 {
+				if ka, err := strconv.Atoi(fields[7]); err == nil {
+					peer.PersistentKA = ka
+				}
+			}
+
+			status.Peers = append(status.Peers, *peer)
+		}
+	}
+
+	return status, nil
+}
+
+// parseWireGuardOutput 解析普通的wg show wg0输出（备用方法）
+func (ss *StatusService) parseWireGuardOutput(output string) (*WireGuardStatus, error) {
+	status := &WireGuardStatus{
+		Interface:   "wg0",
+		Status:      "stopped", // 默认为stopped，需要根据实际输出判断
+		LastUpdated: time.Now(),
+	}
+
+	lines := strings.Split(output, "\n")
 	var currentPeer *PeerStatus
 
 	for _, line := range lines {
@@ -144,7 +269,6 @@ func (ss *StatusService) GetWireGuardStatus() (*WireGuardStatus, error) {
 				}
 			}
 		case "peer:":
-			// 新的peer开始
 			if currentPeer != nil {
 				status.Peers = append(status.Peers, *currentPeer)
 			}
@@ -166,13 +290,14 @@ func (ss *StatusService) GetWireGuardStatus() (*WireGuardStatus, error) {
 		case "latest":
 			if currentPeer != nil && len(fields) >= 3 && fields[1] == "handshake:" {
 				timeStr := strings.Join(fields[2:], " ")
-				if t, err := time.Parse("2006-01-02 15:04:05", timeStr); err == nil {
+				if strings.Contains(timeStr, "ago") {
+					currentPeer.LatestHandshake = time.Now().Add(-time.Minute)
+				} else if t, err := time.Parse("2006-01-02 15:04:05", timeStr); err == nil {
 					currentPeer.LatestHandshake = t
 				}
 			}
 		case "transfer:":
 			if currentPeer != nil && len(fields) >= 5 {
-				// 格式: transfer: 1.23 MiB received, 4.56 KiB sent
 				if rx, err := parseTransferSize(fields[1], fields[2]); err == nil {
 					currentPeer.TransferRx = rx
 				}
@@ -191,9 +316,29 @@ func (ss *StatusService) GetWireGuardStatus() (*WireGuardStatus, error) {
 		}
 	}
 
-	// 添加最后一个peer
 	if currentPeer != nil {
 		status.Peers = append(status.Peers, *currentPeer)
+	}
+
+	// 根据是否有peer和handshake时间来判断状态
+	if len(status.Peers) > 0 {
+		// 检查最新的handshake时间
+		latestHandshake := time.Time{}
+		for _, peer := range status.Peers {
+			if peer.LatestHandshake.After(latestHandshake) {
+				latestHandshake = peer.LatestHandshake
+			}
+		}
+
+		// 如果handshake时间在2分钟内，认为是running状态
+		if time.Since(latestHandshake) < 2*time.Minute {
+			status.Status = "running"
+		} else {
+			status.Status = "stopped"
+		}
+	} else {
+		// 没有peer，可能是configured状态
+		status.Status = "configured"
 	}
 
 	return status, nil
@@ -205,37 +350,59 @@ func (ss *StatusService) GetTrafficStats() (*TrafficStats, error) {
 		LastUpdated: time.Now(),
 	}
 
-	// 从网络接口统计信息获取流量
-	content, err := os.ReadFile("/proc/net/dev")
+	// 直接执行 wg show wg0 dump 命令获取状态
+	cmd := exec.Command("wg", "show", "wg0", "dump")
+	output, err := cmd.Output()
 	if err != nil {
-		// 在非Linux系统或文件不存在时，返回默认值而不是错误
+		// 命令执行失败，说明接口不存在或未配置
 		return stats, nil
 	}
 
-	scanner := bufio.NewScanner(strings.NewReader(string(content)))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, "wg0:") {
-			fields := strings.Fields(line)
-			if len(fields) >= 10 {
-				// 接收字节数 (第2个字段)
-				if rx, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
-					stats.RxBytes = rx
-				}
-				// 接收包数 (第3个字段)
-				if rxPkts, err := strconv.ParseUint(fields[2], 10, 64); err == nil {
-					stats.RxPackets = rxPkts
-				}
-				// 发送字节数 (第10个字段)
-				if tx, err := strconv.ParseUint(fields[9], 10, 64); err == nil {
-					stats.TxBytes = tx
-				}
-				// 发送包数 (第11个字段)
-				if txPkts, err := strconv.ParseUint(fields[10], 10, 64); err == nil {
-					stats.TxPackets = txPkts
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) <= 1 {
+		// 没有peer，返回默认值
+		return stats, nil
+	}
+
+	// 找到最新的handshake时间和对应的流量数据
+	latestHandshake := time.Time{}
+	var rxBytes, txBytes uint64
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) >= 7 {
+			// 第5个字段是last_handshake (Unix timestamp)
+			if timestamp, err := strconv.ParseInt(fields[4], 10, 64); err == nil {
+				handshakeTime := time.Unix(timestamp, 0)
+				if handshakeTime.After(latestHandshake) {
+					latestHandshake = handshakeTime
+					// 第6、7个字段是rx_bytes和tx_bytes
+					if rx, err := strconv.ParseUint(fields[5], 10, 64); err == nil {
+						rxBytes = rx
+					}
+					if tx, err := strconv.ParseUint(fields[6], 10, 64); err == nil {
+						txBytes = tx
+					}
 				}
 			}
-			break
+		}
+	}
+
+	// 基于handshake时间判断是否有活跃连接
+	// 注意：即使接口状态是"off"，如果有活跃的handshake，仍然认为连接是活跃的
+	if !latestHandshake.IsZero() && time.Since(latestHandshake) < 2*time.Minute {
+		stats.RxBytes = rxBytes
+		stats.TxBytes = txBytes
+		// 简单估算包数
+		if stats.RxBytes > 0 {
+			stats.RxPackets = stats.RxBytes / 1024
+		}
+		if stats.TxBytes > 0 {
+			stats.TxPackets = stats.TxBytes / 1024
 		}
 	}
 
@@ -566,4 +733,268 @@ func (ss *StatusService) getDiskInfoV2() (*DiskInfo, error) {
 	diskInfo.Percent = diskStat.UsedPercent
 
 	return diskInfo, nil
+}
+
+// GetVPNStatus 获取VPN状态信息
+func (ss *StatusService) GetVPNStatus() (*VPNStatus, error) {
+	status := &VPNStatus{
+		Status:            "stopped", // 默认停止
+		ConnectionQuality: "disconnected",
+		Latency:           0,
+		LastHandshake:     time.Now(),
+		Uptime:            "0秒",
+	}
+
+	// 直接执行 wg show wg0 dump 命令获取状态
+	cmd := exec.Command("wg", "show", "wg0", "dump")
+	output, err := cmd.Output()
+	if err != nil {
+		// 命令执行失败，说明接口不存在或未配置
+		status.Status = "stopped"
+		status.ConnectionQuality = "disconnected"
+		status.Uptime = "接口未配置"
+		return status, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) < 1 {
+		return status, nil
+	}
+
+	// 检查是否有peer连接
+	if len(lines) <= 1 {
+		// 没有peer，可能是configured状态
+		status.Status = "configured"
+		status.ConnectionQuality = "unknown"
+		status.Uptime = "已配置"
+		return status, nil
+	}
+
+	// 找到最新的handshake时间
+	latestHandshake := time.Time{}
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) >= 5 {
+			// 第5个字段是last_handshake (Unix timestamp)
+			if timestamp, err := strconv.ParseInt(fields[4], 10, 64); err == nil {
+				handshakeTime := time.Unix(timestamp, 0)
+				if handshakeTime.After(latestHandshake) {
+					latestHandshake = handshakeTime
+				}
+			}
+		}
+	}
+
+	// 如果没有找到handshake时间，说明没有活跃连接
+	if latestHandshake.IsZero() {
+		status.Status = "stopped"
+		status.ConnectionQuality = "disconnected"
+		status.Uptime = "无连接记录"
+		return status, nil
+	}
+
+	status.LastHandshake = latestHandshake
+	timeSinceHandshake := time.Since(latestHandshake)
+
+	// 核心判断逻辑：如果handshake时间在2分钟内，说明在线
+	// 注意：即使接口状态是"off"，如果有活跃的handshake，仍然认为连接是活跃的
+	if timeSinceHandshake < 2*time.Minute {
+		status.Status = "running"
+
+		// 计算连接质量
+		if timeSinceHandshake < time.Minute {
+			status.ConnectionQuality = "excellent"
+		} else {
+			status.ConnectionQuality = "good"
+		}
+
+		// 计算运行时间（从最后握手时间开始）
+		status.Uptime = formatDuration(timeSinceHandshake)
+	} else {
+		// 超过2分钟没有handshake，算离线
+		status.Status = "stopped"
+		status.ConnectionQuality = "disconnected"
+		status.Uptime = formatDuration(timeSinceHandshake) + " (离线)"
+	}
+
+	return status, nil
+}
+
+// formatDuration 格式化时间间隔
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%.0f秒", d.Seconds())
+	} else if d < time.Hour {
+		minutes := int(d.Minutes())
+		seconds := int(d.Seconds()) % 60
+		return fmt.Sprintf("%d分%d秒", minutes, seconds)
+	} else {
+		hours := int(d.Hours())
+		minutes := int(d.Minutes()) % 60
+		return fmt.Sprintf("%d小时%d分", hours, minutes)
+	}
+}
+
+// GetNetworkMetrics 获取网络性能指标
+func (ss *StatusService) GetNetworkMetrics() (*NetworkMetrics, error) {
+	metrics := &NetworkMetrics{}
+
+	// 直接执行 wg show wg0 dump 命令获取状态
+	cmd := exec.Command("wg", "show", "wg0", "dump")
+	output, err := cmd.Output()
+	if err != nil {
+		// 命令执行失败，说明接口不存在或未配置
+		metrics.Status = "disconnected"
+		metrics.Quality = "unknown"
+		return metrics, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) <= 1 {
+		// 没有peer，可能是configured状态
+		metrics.Status = "configured"
+		metrics.Quality = "unknown"
+		return metrics, nil
+	}
+
+	// 找到最新的handshake时间和对应的endpoint
+	latestHandshake := time.Time{}
+	var endpoint string
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) >= 5 {
+			// 第5个字段是last_handshake (Unix timestamp)
+			if timestamp, err := strconv.ParseInt(fields[4], 10, 64); err == nil {
+				handshakeTime := time.Unix(timestamp, 0)
+				if handshakeTime.After(latestHandshake) {
+					latestHandshake = handshakeTime
+					// 第3个字段是endpoint
+					if len(fields) >= 3 {
+						endpoint = fields[2]
+					}
+				}
+			}
+		}
+	}
+
+	// 基于handshake时间判断连接状态
+	// 注意：即使接口状态是"off"，如果有活跃的handshake，仍然认为连接是活跃的
+	timeSinceHandshake := time.Since(latestHandshake)
+	if timeSinceHandshake < 2*time.Minute {
+		// 2分钟内有handshake，说明连接是活跃的
+		metrics.Status = "connected"
+
+		// 测量延迟
+		if endpoint != "" {
+			latency, err := ss.measureLatency(endpoint)
+			if err == nil {
+				metrics.Latency = latency
+			}
+		}
+
+		// 计算丢包率
+		if endpoint != "" {
+			packetLoss, err := ss.measurePacketLoss(endpoint)
+			if err == nil {
+				metrics.PacketLoss = packetLoss
+			}
+		}
+
+		// 评估网络质量
+		metrics.Quality = ss.evaluateNetworkQuality(metrics.Latency, metrics.PacketLoss)
+	} else {
+		// 超过2分钟没有handshake，算离线
+		metrics.Status = "disconnected"
+		metrics.Quality = "disconnected"
+	}
+
+	return metrics, nil
+}
+
+// measureLatency 测量延迟
+func (ss *StatusService) measureLatency(endpoint string) (int, error) {
+	// 解析endpoint获取IP地址
+	ip := strings.Split(endpoint, ":")[0]
+
+	// 使用ping命令测量延迟
+	cmd := exec.Command("ping", "-c", "3", "-W", "1", ip)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	// 解析ping输出获取平均延迟
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "avg") {
+			// 提取延迟数值
+			// 格式: round-trip min/avg/max/mdev = 0.123/0.456/0.789/0.123 ms
+			parts := strings.Split(line, "=")
+			if len(parts) == 2 {
+				avgPart := strings.Split(parts[1], "/")[1]
+				avgPart = strings.TrimSpace(avgPart)
+				if latency, err := strconv.ParseFloat(avgPart, 64); err == nil {
+					return int(latency), nil
+				}
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("无法解析ping结果")
+}
+
+// measurePacketLoss 测量丢包率
+func (ss *StatusService) measurePacketLoss(endpoint string) (float64, error) {
+	// 解析endpoint获取IP地址
+	ip := strings.Split(endpoint, ":")[0]
+
+	// 使用ping命令测量丢包率
+	cmd := exec.Command("ping", "-c", "10", "-W", "1", ip)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	// 解析ping输出获取丢包率
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "packets transmitted") {
+			// 格式: 10 packets transmitted, 9 received, 10% packet loss
+			parts := strings.Split(line, ",")
+			if len(parts) >= 3 {
+				lossPart := strings.TrimSpace(parts[2])
+				if strings.Contains(lossPart, "%") {
+					lossStr := strings.Split(lossPart, "%")[0]
+					if loss, err := strconv.ParseFloat(lossStr, 64); err == nil {
+						return loss, nil
+					}
+				}
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("无法解析ping结果")
+}
+
+// evaluateNetworkQuality 评估网络质量
+func (ss *StatusService) evaluateNetworkQuality(latency int, packetLoss float64) string {
+	if latency < 50 && packetLoss < 1 {
+		return "excellent"
+	} else if latency < 100 && packetLoss < 5 {
+		return "good"
+	} else if latency < 200 && packetLoss < 10 {
+		return "fair"
+	} else {
+		return "poor"
+	}
 }

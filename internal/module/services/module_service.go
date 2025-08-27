@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
 	"log"
 	"os"
@@ -12,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"eitec-vpn/internal/module/database"
-	"eitec-vpn/internal/module/models"
 	"eitec-vpn/internal/shared/config"
 	"eitec-vpn/internal/shared/utils"
 )
@@ -24,6 +21,14 @@ const (
 	DefaultModuleConfigDir     = "/etc/eitec-vpn"
 	DefaultModuleInfoPath      = "/etc/eitec-vpn/module.info"
 )
+
+// WireGuardInterface WireGuard接口信息
+type WireGuardInterface struct {
+	Name       string `json:"name"`        // 接口名称，如 wg0, wg1
+	Status     string `json:"status"`      // 状态: running, stopped, error
+	ConfigPath string `json:"config_path"` // 配置文件路径
+	IsActive   bool   `json:"is_active"`   // 是否为当前活动接口
+}
 
 // ModuleService 模块服务
 type ModuleService struct {
@@ -58,6 +63,13 @@ type ModuleInfo struct {
 	Name     string `json:"name"`
 	Location string `json:"location"`
 	Status   string `json:"status"`
+
+	// WireGuard配置信息
+	IPAddress          string `json:"ip_address"`
+	AllowedIPs         string `json:"allowed_ips"`
+	PersistentKA       int    `json:"persistent_ka"`
+	DNS                string `json:"dns"`
+	WireGuardInterface string `json:"wireguard_interface"`
 }
 
 // SetupInfo 设置信息
@@ -70,33 +82,7 @@ type SetupInfo struct {
 
 // GetModuleInfo 获取模块信息
 func (ms *ModuleService) GetModuleInfo() *ModuleInfo {
-	var moduleInfo *ModuleInfo
-
-	// 优先从数据库获取
-	db := database.DB
-	if db != nil {
-		var module models.LocalModule
-		if err := db.First(&module).Error; err == nil {
-			status := "未配置"
-			if module.IsConfigured {
-				if ms.IsWireGuardRunning() {
-					status = "运行中"
-				} else {
-					status = "已停止"
-				}
-			}
-
-			moduleInfo = &ModuleInfo{
-				ID:       module.ServerID,
-				Name:     module.Name,
-				Location: module.Location,
-				Status:   status,
-			}
-			return moduleInfo
-		}
-	}
-
-	// 兼容性：从配置文件获取
+	// 从配置文件获取
 	status := "未配置"
 	if ms.IsConfigured() {
 		if ms.IsWireGuardRunning() {
@@ -116,16 +102,7 @@ func (ms *ModuleService) GetModuleInfo() *ModuleInfo {
 
 // IsConfigured 检查是否已配置
 func (ms *ModuleService) IsConfigured() bool {
-	// 首先检查数据库
-	db := database.DB
-	if db != nil {
-		var module models.LocalModule
-		if err := db.Where("is_configured = ?", 1).First(&module).Error; err == nil {
-			return true
-		}
-	}
-
-	// 兼容性检查：检查配置文件是否存在
+	// 检查配置文件是否存在
 	configPath := DefaultWireGuardConfigPath
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return false
@@ -152,11 +129,6 @@ func (ms *ModuleService) ApplySetup(setup *SetupInfo) error {
 	configPath := DefaultWireGuardConfigPath
 	if err := os.WriteFile(configPath, []byte(setup.ConfigData), 0600); err != nil {
 		return fmt.Errorf("写入配置文件失败: %v", err)
-	}
-
-	// 保存到数据库
-	if err := ms.saveToDatabase(setup); err != nil {
-		return fmt.Errorf("保存配置到数据库失败: %v", err)
 	}
 
 	// 更新模块配置文件（保持兼容性）
@@ -821,60 +793,6 @@ func (ms *ModuleService) saveConfig() error {
 	return nil
 }
 
-// saveToDatabase 保存配置到数据库
-func (ms *ModuleService) saveToDatabase(setup *SetupInfo) error {
-	db := database.DB
-	if db == nil {
-		return fmt.Errorf("数据库连接未初始化")
-	}
-
-	// 计算配置哈希
-	configHash := fmt.Sprintf("%x", md5.Sum([]byte(setup.ConfigData)))
-
-	// 查找或创建模块记录
-	var module models.LocalModule
-	result := db.Where("server_id = ?", setup.ModuleID).First(&module)
-
-	now := time.Now()
-
-	if result.Error != nil {
-		// 创建新记录
-		module = models.LocalModule{
-			ServerID:     setup.ModuleID,
-			Name:         fmt.Sprintf("Module-%d", setup.ModuleID),
-			ServerURL:    setup.ServerURL,
-			APIKey:       setup.APIKey,
-			ConfigHash:   configHash,
-			IsConfigured: true,
-			LastSync:     &now,
-			Status:       models.ModuleStatusOnline,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-		}
-
-		if err := db.Create(&module).Error; err != nil {
-			return fmt.Errorf("创建模块记录失败: %w", err)
-		}
-	} else {
-		// 更新现有记录
-		updates := map[string]interface{}{
-			"server_url":    setup.ServerURL,
-			"api_key":       setup.APIKey,
-			"config_hash":   configHash,
-			"is_configured": true,
-			"last_sync":     &now,
-			"status":        models.ModuleStatusOnline,
-			"updated_at":    now,
-		}
-
-		if err := db.Model(&module).Updates(updates).Error; err != nil {
-			return fmt.Errorf("更新模块记录失败: %w", err)
-		}
-	}
-
-	return nil
-}
-
 // GetSystemInfo 获取系统信息
 func (ms *ModuleService) GetSystemInfo() map[string]interface{} {
 	info := make(map[string]interface{})
@@ -936,4 +854,137 @@ func (ms *ModuleService) ValidateConfig(config string) error {
 	}
 
 	return nil
+}
+
+// GetWireGuardInterfaces 获取所有WireGuard接口
+func (ms *ModuleService) GetWireGuardInterfaces() ([]WireGuardInterface, error) {
+	var interfaces []WireGuardInterface
+
+	// 检查常见的接口名称
+	commonNames := []string{"wg0", "wg1", "wg2", "wg3"}
+
+	for _, name := range commonNames {
+		configPath := fmt.Sprintf("/etc/wireguard/%s.conf", name)
+		interfaceInfo := WireGuardInterface{
+			Name:       name,
+			ConfigPath: configPath,
+			Status:     "stopped",
+			IsActive:   false,
+		}
+
+		// 检查配置文件是否存在
+		if _, err := os.Stat(configPath); err == nil {
+			// 检查接口是否运行
+			if ms.isInterfaceRunning(name) {
+				interfaceInfo.Status = "running"
+			}
+
+			// 检查是否为当前活动接口
+			if name == "wg0" { // 默认wg0为活动接口
+				interfaceInfo.IsActive = true
+			}
+
+			interfaces = append(interfaces, interfaceInfo)
+		}
+	}
+
+	return interfaces, nil
+}
+
+// isInterfaceRunning 检查指定接口是否运行
+func (ms *ModuleService) isInterfaceRunning(interfaceName string) bool {
+	cmd := exec.Command("wg", "show", interfaceName)
+	return cmd.Run() == nil
+}
+
+// StartWireGuardInterface 启动指定的WireGuard接口
+func (ms *ModuleService) StartWireGuardInterface(interfaceName string) error {
+	if !ms.isInterfaceConfigured(interfaceName) {
+		return fmt.Errorf("接口 %s 未配置", interfaceName)
+	}
+
+	cmd := exec.Command("wg-quick", "up", interfaceName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("启动接口 %s 失败: %v, 输出: %s", interfaceName, err, output)
+	}
+
+	return nil
+}
+
+// StopWireGuardInterface 停止指定的WireGuard接口
+func (ms *ModuleService) StopWireGuardInterface(interfaceName string) error {
+	cmd := exec.Command("wg-quick", "down", interfaceName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("停止接口 %s 失败: %v, 输出: %s", interfaceName, err, output)
+	}
+
+	return nil
+}
+
+// RestartWireGuardInterface 重启指定的WireGuard接口
+func (ms *ModuleService) RestartWireGuardInterface(interfaceName string) error {
+	if err := ms.StopWireGuardInterface(interfaceName); err != nil {
+		return err
+	}
+
+	time.Sleep(1 * time.Second)
+
+	return ms.StartWireGuardInterface(interfaceName)
+}
+
+// isInterfaceConfigured 检查接口是否已配置
+func (ms *ModuleService) isInterfaceConfigured(interfaceName string) bool {
+	configPath := fmt.Sprintf("/etc/wireguard/%s.conf", interfaceName)
+	_, err := os.Stat(configPath)
+	return err == nil
+}
+
+// UpdateWireGuardConfigWithInterface 更新指定接口的WireGuard配置
+func (ms *ModuleService) UpdateWireGuardConfigWithInterface(interfaceName, config string) error {
+	configPath := fmt.Sprintf("/etc/wireguard/%s.conf", interfaceName)
+
+	// 备份当前配置
+	backupPath := configPath + ".backup"
+	if _, err := os.Stat(configPath); err == nil {
+		if err := exec.Command("cp", configPath, backupPath).Run(); err != nil {
+			return fmt.Errorf("备份配置失败: %v", err)
+		}
+	}
+
+	// 写入新配置
+	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
+		return fmt.Errorf("写入配置文件失败: %v", err)
+	}
+
+	// 如果接口正在运行，重启它
+	if ms.isInterfaceRunning(interfaceName) {
+		if err := ms.RestartWireGuardInterface(interfaceName); err != nil {
+			// 恢复备份
+			exec.Command("mv", backupPath, configPath).Run()
+			return fmt.Errorf("重启接口失败: %v", err)
+		}
+	}
+
+	// 删除备份
+	os.Remove(backupPath)
+
+	return nil
+}
+
+// ReadWireGuardConfigFile 读取指定路径的WireGuard配置文件
+func (ms *ModuleService) ReadWireGuardConfigFile(configPath string) (string, error) {
+	// 检查文件是否存在
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("配置文件不存在: %s", configPath)
+	}
+
+	// 读取文件内容
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", fmt.Errorf("读取配置文件失败: %v", err)
+	}
+
+	return string(content), nil
 }

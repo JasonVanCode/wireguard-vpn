@@ -95,21 +95,22 @@ Address = %s/32`, module.PrivateKey, module.IPAddress)
 		finalLocalIP = GetDefaultGatewayIP()
 	}
 
-	// 获取接口名称用于PostUp脚本
-	interfaceName := wgInterface.Name
-	if interfaceName == "" {
-		interfaceName = GetDefaultInterfaceName()
+	// 获取模块网卡名称用于PostUp脚本
+	// 优先使用模块配置的网卡名称，如果没有则使用默认值
+	moduleNetworkInterface := module.NetworkInterface
+	if moduleNetworkInterface == "" {
+		moduleNetworkInterface = "wlan0" // 默认使用wlan0
 	}
 
-	// 添加NAT转发规则，实现内网穿透
-	// 参考用户成功配置：使用SNAT规则，源地址是VPN网段，目标地址是模块内网IP
+	// 添加完整的PostUp/PostDown规则，参考用户成功配置
+	// 包含FORWARD规则和NAT规则，实现完整的内网穿透功能
 	config += fmt.Sprintf(`
-# NAT转发规则 - 实现内网穿透功能
-# 参考用户成功配置，添加SNAT规则
-PostUp = iptables -t nat -A POSTROUTING -s %s -j SNAT --to-source %s
-PostDown = iptables -t nat -D POSTROUTING -s %s -j SNAT --to-source %s`,
-		wgInterface.Network, finalLocalIP,
-		wgInterface.Network, finalLocalIP)
+# 完整的防火墙规则 - 实现内网穿透功能
+# 参考用户成功配置：包含FORWARD和NAT规则
+PostUp = iptables -A FORWARD -i %%i -o %s -j ACCEPT; iptables -A FORWARD -i %s -o %%i -m state --state RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -s %s -o %s -j SNAT --to-source %s
+PostDown = iptables -D FORWARD -i %%i -o %s -j ACCEPT; iptables -D FORWARD -i %s -o %%i -m state --state RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -D POSTROUTING -s %s -o %s -j SNAT --to-source %s`,
+		moduleNetworkInterface, moduleNetworkInterface, wgInterface.Network, moduleNetworkInterface, finalLocalIP,
+		moduleNetworkInterface, moduleNetworkInterface, wgInterface.Network, moduleNetworkInterface, finalLocalIP)
 
 	// 根据用户成功配置的模式设置AllowedIPs
 	// 参考：AllowedIPs = 10.10.0.0/24 (整个VPN网段，实现VPN内部互通)

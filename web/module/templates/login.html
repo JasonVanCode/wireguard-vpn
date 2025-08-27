@@ -606,11 +606,6 @@
                         // 保存到localStorage（用于API请求）
                         localStorage.setItem('module_token', data.data.token);
                         
-                        // 保存到Cookie（用于页面请求）
-                        const expiresIn = data.data.expires_in || 86400; // 默认24小时
-                        const expires = new Date(Date.now() + expiresIn * 1000);
-                        document.cookie = `module_token=${data.data.token}; path=/; expires=${expires.toUTCString()}; httpOnly=false`;
-                        
                         if (rememberMe) {
                             localStorage.setItem('module_remember', 'true');
                         }
@@ -699,10 +694,12 @@
                     } else {
                         // Token无效，清除并继续显示登录页面
                         localStorage.removeItem('module_token');
+                        console.log('Token验证失败，清除本地存储');
                     }
                 })
-                .catch(() => {
+                .catch((error) => {
                     // Token无效，清除并继续显示登录页面
+                    console.error('Token验证请求失败:', error);
                     localStorage.removeItem('module_token');
                 });
             }
@@ -712,18 +709,26 @@
         async function checkConfigurationAndRedirect() {
             try {
                 const response = await fetch('/api/v1/config/status');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
-                console.log(data);
+                console.log('配置状态检查结果:', data);
+                
                 if (data.configured) {
                     // 配置已就绪，跳转到主页面
+                    console.log('配置已就绪，跳转到主页面');
                     window.location.href = '/';
                 } else {
                     // 配置未就绪，跳转到配置页面
+                    console.log('配置未就绪，跳转到配置页面');
                     window.location.href = '/config';
                 }
             } catch (error) {
                 console.error('检查配置状态失败:', error);
                 // 发生错误，默认跳转到主页面
+                console.log('配置检查失败，默认跳转到主页面');
                 window.location.href = '/';
             }
         }

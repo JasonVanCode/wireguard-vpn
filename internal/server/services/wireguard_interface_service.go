@@ -124,28 +124,30 @@ func (wis *WireGuardInterfaceService) GetInterfacesWithStatus() ([]InterfaceWith
 			Modules:            []ModuleWithStatus{},
 		}
 
-		// 获取实时状态
-		if showInfo, err := showService.GetInterfaceInfo(iface.Name); err == nil && showInfo.IsActive {
-			interfaceStatus.IsActive = showInfo.IsActive
-			interfaceStatus.PeerCount = showInfo.PeerCount
-			interfaceStatus.ActivePeers = showInfo.ActivePeers
-			interfaceStatus.TotalTraffic = ShowTrafficData{
-				RxBytes: showInfo.TotalTraffic.RxBytes,
-				TxBytes: showInfo.TotalTraffic.TxBytes,
-				RxMB:    "[WG] " + showInfo.TotalTraffic.RxMB,
-				TxMB:    "[WG] " + showInfo.TotalTraffic.TxMB,
-				Total:   "[WG] " + showInfo.TotalTraffic.Total,
+		// 获取实时状态（只调用一次，避免重复调用）
+		var showInfo *InterfaceShowInfo
+		if info, err := showService.GetInterfaceInfo(iface.Name); err == nil {
+			showInfo = info
+			if showInfo.IsActive {
+				interfaceStatus.IsActive = showInfo.IsActive
+				interfaceStatus.PeerCount = showInfo.PeerCount
+				interfaceStatus.ActivePeers = showInfo.ActivePeers
+				interfaceStatus.TotalTraffic = ShowTrafficData{
+					RxBytes: showInfo.TotalTraffic.RxBytes,
+					TxBytes: showInfo.TotalTraffic.TxBytes,
+					RxMB:    "[WG] " + showInfo.TotalTraffic.RxMB,
+					TxMB:    "[WG] " + showInfo.TotalTraffic.TxMB,
+					Total:   "[WG] " + showInfo.TotalTraffic.Total,
+				}
+				interfaceStatus.LastHandshake = showInfo.LastHandshake
+				interfaceStatus.ServiceStatus = "[WG] active"
 			}
-			interfaceStatus.LastHandshake = showInfo.LastHandshake
-			interfaceStatus.ServiceStatus = "[WG] active"
 		}
 
 		// 处理关联模块的实时状态（数据已通过Preload加载）
 		if len(iface.Modules) > 0 {
 			for _, module := range iface.Modules {
-				// 直接使用预加载的用户数据，避免循环查询数据库
-				users := wis.convertUserVPNsToModuleUserInfo(module.UserVPNs, interfaceStatus.IsActive)
-
+				// 直接使用预加载的UserVPN数据，包含所有字段
 				moduleStatus := ModuleWithStatus{
 					Module:            module,
 					IsOnline:          false,
@@ -155,60 +157,69 @@ func (wis *WireGuardInterfaceService) GetInterfacesWithStatus() ([]InterfaceWith
 					CurrentEndpoint:   "",
 					ConnectionQuality: "unknown",
 					PingLatency:       -1,
-					UserCount:         len(users),
-					Users:             users,
+					UserCount:         len(module.UserVPNs),
+					Users:             module.UserVPNs, // 直接使用完整的UserVPN数据
 				}
 
 				// 如果有实时状态，更新模块信息和用户状态
-				if interfaceStatus.IsActive {
-					if showInfo, err := showService.GetInterfaceInfo(iface.Name); err == nil {
-						// 更新模块状态
-						if peer, exists := showInfo.Peers[module.PublicKey]; exists {
-							moduleStatus.IsOnline = peer.IsOnline
-							moduleStatus.LatestHandshake = peer.LatestHandshake
-							moduleStatus.TrafficStats = ShowTrafficData{
-								RxBytes: peer.TrafficStats.RxBytes,
-								TxBytes: peer.TrafficStats.TxBytes,
-								RxMB:    "[WG] " + peer.TrafficStats.RxMB,
-								TxMB:    "[WG] " + peer.TrafficStats.TxMB,
-								Total:   "[WG] " + peer.TrafficStats.Total,
-							}
-							moduleStatus.CurrentEndpoint = "[WG] " + peer.Endpoint
-							moduleStatus.LastSeen = peer.LatestHandshake
+				if showInfo != nil && interfaceStatus.IsActive {
+					// 更新模块状态
+					if peer, exists := showInfo.Peers[module.PublicKey]; exists {
+						moduleStatus.IsOnline = peer.IsOnline
+						moduleStatus.LatestHandshake = peer.LatestHandshake
+						moduleStatus.TrafficStats = ShowTrafficData{
+							RxBytes: peer.TrafficStats.RxBytes,
+							TxBytes: peer.TrafficStats.TxBytes,
+							RxMB:    "[WG] " + peer.TrafficStats.RxMB,
+							TxMB:    "[WG] " + peer.TrafficStats.TxMB,
+							Total:   "[WG] " + peer.TrafficStats.Total,
 						}
+						moduleStatus.CurrentEndpoint = "[WG] " + peer.Endpoint
+						moduleStatus.LastSeen = peer.LatestHandshake
+					}
 
-						// 根据wg show输出更新用户状态（数据库状态作废）
-						for i := range moduleStatus.Users {
-							userPublicKey := ""
-							// 根据用户ID查找对应的UserVPN记录获取公钥
-							for _, userVPN := range module.UserVPNs {
-								if userVPN.ID == moduleStatus.Users[i].ID {
-									userPublicKey = userVPN.PublicKey
-									break
-								}
-							}
+					// 根据wg show输出更新用户状态和心跳时间（数据库状态作废）
+					fmt.Printf("🔍 [用户状态更新] 模块 %s 开始更新用户状态，wg show peers数量: %d\n", module.Name, len(showInfo.Peers))
+					for i := range moduleStatus.Users {
+						userVPN := &moduleStatus.Users[i] // 直接引用UserVPN
+						userPublicKey := userVPN.PublicKey
 
-							// 只根据wg show输出判断用户是否在线
-							if userPublicKey != "" {
-								if userPeer, exists := showInfo.Peers[userPublicKey]; exists && userPeer.IsOnline {
-									moduleStatus.Users[i].IsActive = true
-								} else {
-									moduleStatus.Users[i].IsActive = false
-								}
+						// 安全地截取公钥前20个字符用于显示
+						displayKey := userPublicKey
+						if len(userPublicKey) > 20 {
+							displayKey = userPublicKey[:20] + "..."
+						}
+						fmt.Printf("🔍 [用户状态更新] 用户 %s (ID:%d) 公钥: %s\n",
+							userVPN.Username, userVPN.ID, displayKey)
+
+						// 根据wg show输出更新用户状态和心跳时间
+						if userPublicKey != "" {
+							if userPeer, exists := showInfo.Peers[userPublicKey]; exists {
+								userVPN.IsActive = userPeer.IsOnline
+								userVPN.LatestHandshake = userPeer.LatestHandshake
+								userVPN.LastSeen = userPeer.LatestHandshake // 将握手时间作为最后见到时间
+								fmt.Printf("✅ [用户状态更新] 用户 %s 状态更新成功: 在线=%v, 握手时间=%v\n",
+									userVPN.Username, userPeer.IsOnline, userPeer.LatestHandshake)
 							} else {
-								moduleStatus.Users[i].IsActive = false
+								userVPN.IsActive = false
+								userVPN.LatestHandshake = nil
+								userVPN.LastSeen = nil
+								fmt.Printf("⚠️ [用户状态更新] 用户 %s 在wg show中未找到peer\n", userVPN.Username)
 							}
-						}
-					} else {
-						// 无法获取wg show信息，所有用户设为离线
-						for i := range moduleStatus.Users {
-							moduleStatus.Users[i].IsActive = false
+						} else {
+							userVPN.IsActive = false
+							userVPN.LatestHandshake = nil
+							userVPN.LastSeen = nil
+							fmt.Printf("❌ [用户状态更新] 用户 %s 未找到公钥\n", userVPN.Username)
 						}
 					}
 				} else {
-					// 接口未激活，所有用户设为离线
+					// 无法获取wg show信息或接口未激活，所有用户设为离线并清空心跳时间
 					for i := range moduleStatus.Users {
-						moduleStatus.Users[i].IsActive = false
+						userVPN := &moduleStatus.Users[i]
+						userVPN.IsActive = false
+						userVPN.LatestHandshake = nil
+						userVPN.LastSeen = nil
 					}
 				}
 
@@ -555,15 +566,18 @@ func (wis *WireGuardInterfaceService) GenerateInterfaceConfig(wgInterface *model
 	if wgInterface.PostUp != "" {
 		config.WriteString(fmt.Sprintf("PostUp = %s\n", wgInterface.PostUp))
 	} else {
-		// 使用成功验证的规则格式：简洁且使用%i占位符和动态网络接口
-		config.WriteString(fmt.Sprintf("PostUp = iptables -A FORWARD -i %%i -j ACCEPT; iptables -A FORWARD -o %%i -j ACCEPT; iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", networkInterface))
+		// 智能生成PostUp规则：根据模块的网卡名称动态调整
+		// 如果所有模块都使用相同的网卡，则使用该网卡；否则使用默认网卡
+		smartNetworkInterface := wis.getSmartNetworkInterface(wgInterface.ID, networkInterface)
+		config.WriteString(fmt.Sprintf("PostUp = iptables -A FORWARD -i %%i -j ACCEPT; iptables -A FORWARD -o %%i -j ACCEPT; iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", smartNetworkInterface))
 	}
 
 	if wgInterface.PostDown != "" {
 		config.WriteString(fmt.Sprintf("PostDown = %s\n", wgInterface.PostDown))
 	} else {
-		// 对应的清理规则
-		config.WriteString(fmt.Sprintf("PostDown = iptables -D FORWARD -i %%i -j ACCEPT; iptables -D FORWARD -o %%i -j ACCEPT; iptables -t nat -D POSTROUTING -o %s -j MASQUERADE\n", networkInterface))
+		// 智能生成PostDown规则：与PostUp保持一致
+		smartNetworkInterface := wis.getSmartNetworkInterface(wgInterface.ID, networkInterface)
+		config.WriteString(fmt.Sprintf("PostDown = iptables -D FORWARD -i %%i -j ACCEPT; iptables -D FORWARD -o %%i -j ACCEPT; iptables -t nat -D POSTROUTING -o %s -j MASQUERADE\n", smartNetworkInterface))
 	}
 
 	// 获取所有模块信息（用于生成Peer配置）
@@ -1008,18 +1022,9 @@ type ModuleWithStatus struct {
 	ConnectionQuality string `json:"connection_quality"` // 连接质量评估
 	PingLatency       int    `json:"ping_latency"`       // ping延迟(ms)
 
-	// 用户信息（直接返回用户列表而不是数量）
+	// 用户信息（直接使用UserVPN数据，包含所有字段）
 	UserCount int              `json:"user_count"` // 关联的用户数量（保持兼容性）
-	Users     []ModuleUserInfo `json:"users"`      // 用户详细信息列表
-}
-
-// ModuleUserInfo 模块用户信息
-type ModuleUserInfo struct {
-	ID        uint   `json:"id"`
-	Username  string `json:"username"`
-	Email     string `json:"email,omitempty"`
-	IsActive  bool   `json:"is_active"`
-	IPAddress string `json:"ip_address"`
+	Users     []models.UserVPN `json:"users"`      // 完整的用户VPN信息，包含心跳时间
 }
 
 // ShowTrafficData 流量数据（使用show service的格式）
@@ -1033,40 +1038,36 @@ type ShowTrafficData struct {
 
 // 旧的重复代码已移动到 wireguard_show_service.go
 
-// getUserCountForModule 获取模块的用户数量
-func (wis *WireGuardInterfaceService) getUserCountForModule(moduleID uint) int {
-	var count int64
-	wis.db.Model(&models.UserVPN{}).Where("module_id = ?", moduleID).Count(&count)
-	return int(count)
-}
-
-// convertUserVPNsToModuleUserInfo 将预加载的UserVPN数据转换为ModuleUserInfo
-// 用户状态统一由wg show输出决定，数据库状态作废
-func (wis *WireGuardInterfaceService) convertUserVPNsToModuleUserInfo(userVPNs []models.UserVPN, interfaceIsActive bool) []ModuleUserInfo {
-	if len(userVPNs) == 0 {
-		return []ModuleUserInfo{}
+// getSmartNetworkInterface 智能获取网络接口名称
+// 如果所有模块都使用相同的网卡，则使用该网卡；否则使用默认网卡
+func (wis *WireGuardInterfaceService) getSmartNetworkInterface(interfaceID uint, defaultInterface string) string {
+	// 查询该接口下的所有模块
+	var modules []models.Module
+	if err := wis.db.Where("interface_id = ?", interfaceID).Find(&modules).Error; err != nil {
+		return defaultInterface
 	}
 
-	users := make([]ModuleUserInfo, 0, len(userVPNs))
-	for _, userVPN := range userVPNs {
-		users = append(users, ModuleUserInfo{
-			ID:        userVPN.ID,
-			Username:  userVPN.Username,
-			Email:     userVPN.Email,
-			IsActive:  false, // 默认离线，后续根据wg show输出更新
-			IPAddress: userVPN.IPAddress,
-		})
+	if len(modules) == 0 {
+		return defaultInterface
 	}
 
-	return users
-}
-
-// getModuleUsers 获取模块的用户列表（保留为向后兼容）
-func (wis *WireGuardInterfaceService) getModuleUsers(moduleID uint, interfaceIsActive bool) []ModuleUserInfo {
-	var userVPNs []models.UserVPN
-	if err := wis.db.Where("module_id = ?", moduleID).Find(&userVPNs).Error; err != nil {
-		return []ModuleUserInfo{}
+	// 统计网卡使用情况
+	interfaceCount := make(map[string]int)
+	for _, module := range modules {
+		if module.NetworkInterface != "" {
+			interfaceCount[module.NetworkInterface]++
+		}
 	}
 
-	return wis.convertUserVPNsToModuleUserInfo(userVPNs, interfaceIsActive)
+	// 如果只有一个网卡被使用，且使用次数超过模块总数的一半，则使用该网卡
+	if len(interfaceCount) == 1 {
+		for interfaceName, count := range interfaceCount {
+			if count >= len(modules)/2 {
+				return interfaceName
+			}
+		}
+	}
+
+	// 否则使用默认网卡
+	return defaultInterface
 }

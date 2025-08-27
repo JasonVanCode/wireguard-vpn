@@ -1,238 +1,5 @@
-// =====================================================
-// EITEC VPN - 接口管理功能
-// =====================================================
-//
-// 📋 功能概述：
-// - 管理WireGuard网络接口的完整生命周期
-// - 处理接口创建、启动、停止、删除等核心操作
-// - 提供接口配置预览和模板应用功能
-//
-// 🔗 依赖关系：
-// - 依赖：shared-utils.js (工具函数)
-// - 依赖：bootstrap (模态框管理)
-// - 为 module-management.js 和 user-management.js 提供基础服务
-//
-// 📦 主要功能：
-// - showInterfaceManager() - 接口管理界面
-// - showCreateInterfaceModal() - 创建接口对话框
-// - submitCreateInterface() - 提交接口创建
-// - startInterface() / stopInterface() - 接口启停控制
-// - deleteInterface() - 删除接口
-// - showInterfaceConfig() - 查看接口配置
-// - updateInterfaceConfigPreview() - 配置预览
-//
-// 📏 文件大小：30.0KB (原文件的 28.7%)
-// =====================================================
 
-// 显示接口管理器
-async function showInterfaceManager() {
-    const modalElement = document.getElementById('interfaceManagerModal');
-    if (!modalElement) {
-        console.error('找不到 interfaceManagerModal 元素');
-        return;
-    }
-    
-    // 使用新的模态框管理器
-    ModalManager.show(modalElement);
-    
-    try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/system/wireguard-interfaces', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            const interfaces = result.data || result;
-            
-            let content = `
-                <div class="mb-3">
-                    <h6 style="color: #f1f5f9;"><i class="fas fa-network-wired me-2"></i>WireGuard接口管理</h6>
-                    <p style="color: #94a3b8;">管理系统中的所有WireGuard接口，每个接口对应不同的网络段和端口。</p>
-                    <button class="btn btn-success btn-sm" onclick="showCreateInterfaceModal()">
-                        <i class="fas fa-plus me-1"></i>创建新接口
-                    </button>
-                </div>
-                
-                <div class="table-responsive">
-                    <table style="width: 100%; margin: 0; background: transparent; color: #e2e8f0;">
-                        <thead>
-                            <tr style="background: rgba(15, 23, 42, 0.8); border-bottom: 2px solid rgba(100, 116, 139, 0.4);">
-                                <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">接口名称</th>
-                                <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">状态</th>
-                                <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">网络段</th>
-                                <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">端口</th>
-                                <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">连接数</th>
-                                <th style="color: #f1f5f9; border: none; padding: 12px 16px; font-weight: 600; text-align: left;">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody style="background: transparent;">
-            `;
-            
-            if (interfaces.length === 0) {
-                content += `
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">
-                            <i class="fas fa-network-wired" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                            <div>暂无WireGuard接口</div>
-                            <div style="margin-top: 0.5rem;">
-                                <button class="btn btn-primary btn-sm" onclick="showCreateInterfaceModal()">
-                                    <i class="fas fa-plus me-1"></i>创建第一个接口
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            } else {
-                interfaces.forEach(iface => {
-                    let statusClass = 'secondary';
-                    let statusText = '未知';
-                    let statusIcon = 'fas fa-question-circle';
-                    let wgPrefix = '';
-                    
-                    // 使用实时WireGuard状态
-                    if (iface.is_active !== undefined) {
-                        if (iface.is_active) {
-                            statusClass = 'success';
-                            statusText = '[接口] 运行中';
-                            statusIcon = 'fas fa-play-circle';
-                        } else {
-                            statusClass = 'secondary';
-                            statusText = '[接口] 未运行';
-                            statusIcon = 'fas fa-stop-circle';
-                        }
-                        
-                        // 检查配置文件状态
-                        if (!iface.config_exists) {
-                            statusClass = 'warning';
-                            statusText = '[接口] 配置缺失';
-                            statusIcon = 'fas fa-exclamation-triangle';
-                        }
-                    } else {
-                        // 降级到数据库状态 (兼容性)
-                        switch (iface.status) {
-                            case 0: // Down
-                                statusClass = 'secondary';
-                                statusText = '已停止';
-                                statusIcon = 'fas fa-stop-circle';
-                                break;
-                            case 1: // Up
-                                statusClass = 'success';
-                                statusText = '运行中';
-                                statusIcon = 'fas fa-play-circle';
-                                break;
-                            case 2: // Error
-                                statusClass = 'danger';
-                                statusText = '错误';
-                                statusIcon = 'fas fa-exclamation-circle';
-                                break;
-                            case 3: // Starting
-                                statusClass = 'warning';
-                                statusText = '启动中';
-                                statusIcon = 'fas fa-spinner fa-spin';
-                                break;
-                            case 4: // Stopping
-                                statusClass = 'warning';
-                                statusText = '停止中';
-                                statusIcon = 'fas fa-spinner fa-spin';
-                                break;
-                        }
-                    }
-                    
-                    content += `
-                        <tr style="background: rgba(30, 41, 59, 0.3); border-bottom: 1px solid rgba(100, 116, 139, 0.2); transition: background-color 0.2s ease;" 
-                            onmouseover="this.style.background='rgba(30, 41, 59, 0.6)'" 
-                            onmouseout="this.style.background='rgba(30, 41, 59, 0.3)'">
-                            <td style="border: none; padding: 12px 16px;">
-                                <div>
-                                    <div style="color: #f1f5f9; font-size: 14px; font-weight: 600;">${iface.name}</div>
-                                    <small style="color: #94a3b8;">${iface.description || '无描述'}</small>
-                                </div>
-                            </td>
-                            <td style="border: none; padding: 12px 16px;">
-                                <span class="badge bg-${statusClass}" style="font-size: 11px; padding: 4px 8px;">
-                                    <i class="${statusIcon}" style="margin-right: 4px;"></i>${statusText}
-                                </span>
-                            </td>
-                            <td style="border: none; padding: 12px 16px;">
-                                <span style="background: rgba(15, 23, 42, 0.8); color: #34d399; padding: 4px 8px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; font-weight: 500;">${iface.network}</span>
-                            </td>
-                            <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">${iface.listen_port}</td>
-                            <td style="border: none; padding: 12px 16px; color: #e2e8f0; font-size: 13px;">
-                                ${iface.peer_count !== undefined ? `[实时] ${iface.active_peers || 0}/${iface.peer_count || 0}` : `${iface.total_peers || 0}/${iface.max_peers || 0}`}
-                            </td>
-                            <td style="border: none; padding: 12px 16px;">
-                                <div style="display: flex; gap: 0.25rem;">
-                    `;
-                    
-                    // 根据实时状态显示不同的操作按钮
-                    const isRunning = iface.is_active !== undefined ? iface.is_active : (iface.status === 1);
-                    if (isRunning) { // 运行中
-                        content += `
-                            <button class="btn btn-sm btn-outline-warning" onclick="stopInterface(${iface.id})" title="停止接口">
-                                <i class="fas fa-stop"></i>
-                            </button>
-                        `;
-                    } else { // 已停止
-                        content += `
-                            <button class="btn btn-sm btn-outline-success" onclick="startInterface(${iface.id})" title="启动接口">
-                                <i class="fas fa-play"></i>
-                            </button>
-                        `;
-                    }
-                    
-                    content += `
-                                    <button class="btn btn-sm btn-outline-info" onclick="showInterfaceConfig(${iface.id})" title="查看配置">
-                                        <i class="fas fa-file-code"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteInterface(${iface.id})" title="删除接口">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-            
-            content += `
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="mt-3">
-                    <div class="alert alert-info" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #f1f5f9;">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>操作说明：</strong>
-                        <ul class="mb-0 mt-2" style="padding-left: 1.5rem;">
-                            <li>🔴 <strong>重要</strong>：修改接口配置前请先停止相关接口</li>
-                            <li>接口停止后可以安全地添加/删除模块和用户</li>
-                            <li>配置完成后重新启动接口以应用新的配置</li>
-                            <li>删除接口前请确保没有关联的模块</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('interfaceManagerContent').innerHTML = content;
-        } else {
-            document.getElementById('interfaceManagerContent').innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    加载接口列表失败
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('加载接口管理失败:', error);
-        document.getElementById('interfaceManagerContent').innerHTML = `
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                网络错误，请重试
-            </div>
-        `;
-    }
-}
+
 
 // 显示创建接口模态框
 function showCreateInterfaceModal() {
@@ -260,71 +27,78 @@ function showCreateInterfaceModal() {
 // 建议接口配置
 async function suggestInterfaceConfig() {
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/system/wireguard-interfaces', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('加载接口列表...');
+        const result = await api.wireguard.getInterfaces();
+        console.log('API返回结果:', result); // 调试信息
         
-        if (response.ok) {
-            const result = await response.json();
-            const interfaces = result.data || result;
-            
-            // 建议下一个接口名称
-            const existingNames = interfaces.map(iface => iface.name);
-            let suggestedName = '';
-            for (let i = 0; i < 10; i++) {
-                const name = `wg${i}`;
-                if (!existingNames.includes(name)) {
-                    suggestedName = name;
-                    break;
-                }
-            }
-            
-            // 建议下一个端口
-            const existingPorts = interfaces.map(iface => iface.listen_port);
-            let suggestedPort = 51820;
-            while (existingPorts.includes(suggestedPort)) {
-                suggestedPort++;
-            }
-            
-            // 建议下一个网络段
-            const existingNetworks = interfaces.map(iface => iface.network);
-            let suggestedNetwork = '';
-            for (let i = 10; i < 100; i++) {
-                const network = `10.${i}.0.0/24`;
-                if (!existingNetworks.includes(network)) {
-                    suggestedNetwork = network;
-                    break;
-                }
-            }
-            
-            // 填充建议值
-            if (suggestedName) {
-                document.getElementById('interfaceName').value = suggestedName;
-            }
-            if (suggestedPort) {
-                document.getElementById('interfacePort').value = suggestedPort;
-            }
-            if (suggestedNetwork) {
-                document.getElementById('interfaceNetwork').value = suggestedNetwork;
-            }
-            
-            // 建议描述
-            const descriptions = {
-                'wg0': '主接口 - 生产环境',
-                'wg1': '北京节点专用',
-                'wg2': '上海节点专用',
-                'wg3': '广州节点专用',
-                'wg4': '深圳节点专用',
-                'wg5': '杭州节点专用'
-            };
-            
-            if (descriptions[suggestedName]) {
-                document.getElementById('interfaceDescription').value = descriptions[suggestedName];
+        let interfaces = result.data || result;
+        console.log('处理后的interfaces:', interfaces); // 调试信息
+        
+        // 确保interfaces是数组
+        if (!Array.isArray(interfaces)) {
+            console.warn('接口数据格式异常:', interfaces);
+            interfaces = [];
+        }
+        
+        // 建议下一个接口名称
+        const existingNames = interfaces.map(iface => iface.name);
+        let suggestedName = '';
+        for (let i = 0; i < 10; i++) {
+            const name = `wg${i}`;
+            if (!existingNames.includes(name)) {
+                suggestedName = name;
+                break;
             }
         }
+        
+        // 建议下一个端口
+        const existingPorts = interfaces.map(iface => iface.listen_port);
+        let suggestedPort = 51820;
+        while (existingPorts.includes(suggestedPort)) {
+            suggestedPort++;
+        }
+        
+        // 建议下一个网络段
+        const existingNetworks = interfaces.map(iface => iface.network);
+        let suggestedNetwork = '';
+        for (let i = 10; i < 100; i++) {
+            const network = `10.${i}.0.0/24`;
+            if (!existingNetworks.includes(network)) {
+                suggestedNetwork = network;
+                break;
+            }
+        }
+        
+        // 填充建议值
+        if (suggestedName) {
+            document.getElementById('interfaceName').value = suggestedName;
+        }
+        if (suggestedPort) {
+            document.getElementById('interfacePort').value = suggestedPort;
+        }
+        if (suggestedNetwork) {
+            document.getElementById('interfaceNetwork').value = suggestedNetwork;
+        }
+        
+        // 建议描述
+        const descriptions = {
+            'wg0': '主接口 - 生产环境',
+            'wg1': '北京节点专用',
+            'wg2': '上海节点专用',
+            'wg3': '广州节点专用',
+            'wg4': '深圳节点专用',
+            'wg5': '杭州节点专用'
+        };
+        
+        if (descriptions[suggestedName]) {
+            document.getElementById('interfaceDescription').value = descriptions[suggestedName];
+        }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('获取接口建议配置失败:', error);
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '获取接口建议配置失败');
     }
 }
 
@@ -468,252 +242,296 @@ async function submitCreateInterface() {
     });
     
     try {
-        const token = localStorage.getItem('access_token');
+        apiHelper.showLoading('创建接口中...');
         console.log('准备发送接口创建请求:', interfaceData);
         
-        const response = await fetch('/api/v1/interfaces', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(interfaceData)
-        });
+        const result = await api.wireguard.createInterface(interfaceData);
         
-        console.log('接收到响应状态码:', response.status);
-        console.log('响应是否OK:', response.ok);
-        
-        const result = await response.json();
         console.log('响应内容:', result);
         
-        if (response.ok) {
-            // 关闭模态框
-            const modal = bootstrap.Modal.getInstance(document.getElementById('createInterfaceModal'));
-            modal.hide();
-            
-            // 清空表单
-            form.reset();
-            
-            // 显示成功消息
-            alert(`接口创建成功！\n\n配置信息：\n- 接口名称：${interfaceName}\n- 网络段：${networkCIDR}\n- 监听端口：${port}\n- 已按照标准配置生成防火墙规则`);
-            
-            // 刷新系统配置显示
-            if (document.getElementById('wireGuardConfigModal').classList.contains('show')) {
-                if (typeof refreshSystemConfig === 'function') {
-                    refreshSystemConfig();
-                }
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('createInterfaceModal'));
+        modal.hide();
+        
+        // 清空表单
+        form.reset();
+        
+        // 显示成功消息
+        apiHelper.handleSuccess(`接口创建成功！\n\n配置信息：\n- 接口名称：${interfaceName}\n- 网络段：${networkCIDR}\n- 监听端口：${port}\n- 已按照标准配置生成防火墙规则`);
+        
+        // 刷新系统配置显示
+        if (document.getElementById('wireGuardConfigModal').classList.contains('show')) {
+            if (typeof refreshSystemConfig === 'function') {
+                refreshSystemConfig();
             }
-            
-            // 刷新接口管理界面
-            if (document.getElementById('interfaceManagerModal').classList.contains('show')) {
-                showInterfaceManager();
-            }
-            
-            // 刷新主页面数据
-            if (typeof loadAllData === 'function') {
-                loadAllData();
-            }
-            
-        } else {
-            alert('创建接口失败：' + (result.message || '未知错误'));
         }
+        
+        // 刷新主页面数据
+        if (typeof loadAllData === 'function') {
+            loadAllData();
+        }
+        
+        apiHelper.hideLoading();
         
     } catch (error) {
         console.error('创建接口失败:', error);
-        alert('创建接口失败：网络错误');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '创建接口失败');
     }
 }
 
 // 启动接口
 async function startInterface(interfaceId) {
-    if (!confirm('确定要启动此接口吗？\n\n启动后接口将开始监听端口并可以接受连接。')) {
+    const confirmed = await apiHelper.confirm('确定要启动此接口吗？\n\n启动后接口将开始监听端口并可以接受连接。', '启动接口');
+    if (!confirmed) {
         return;
     }
     
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/interfaces/${interfaceId}/start`, {
-            method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('启动接口中...');
+        await api.wireguard.startInterface(interfaceId);
         
-        const result = await response.json();
-        if (response.ok) {
-            alert('接口启动成功！');
-            // 刷新接口管理界面
-            if (document.getElementById('interfaceManagerModal').classList.contains('show')) {
-                showInterfaceManager();
-            }
-        } else {
-            alert('接口启动失败：' + (result.message || '未知错误'));
-        }
+        apiHelper.handleSuccess('接口启动成功！');
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('启动接口失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '启动接口失败');
     }
 }
 
 // 停止接口
 async function stopInterface(interfaceId) {
-    if (!confirm('确定要停止此接口吗？\n\n停止后所有连接将断开，可以安全地修改配置。')) {
+    const confirmed = await apiHelper.confirm('确定要停止此接口吗？\n\n停止后所有连接将断开，可以安全地修改配置。', '停止接口');
+    if (!confirmed) {
         return;
     }
     
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/interfaces/${interfaceId}/stop`, {
-            method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('停止接口中...');
+        await api.wireguard.stopInterface(interfaceId);
         
-        const result = await response.json();
-        if (response.ok) {
-            alert('接口停止成功！现在可以安全地修改配置了。');
-            // 刷新接口管理界面
-            if (document.getElementById('interfaceManagerModal').classList.contains('show')) {
-                showInterfaceManager();
-            }
-        } else {
-            alert('接口停止失败：' + (result.message || '未知错误'));
-        }
+        apiHelper.handleSuccess('接口停止成功！现在可以安全地修改配置了。');
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('停止接口失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '停止接口失败');
     }
 }
 
 // 删除接口
 async function deleteInterface(interfaceId) {
-    if (!confirm('⚠️ 危险操作：确定要删除此接口吗？\n\n删除后：\n- 接口配置将永久丢失\n- 关联的模块和用户将被删除\n- 此操作不可撤销')) {
-        return;
-    }
-    
-    // 二次确认
-    const confirmText = prompt('请输入 "DELETE" 确认删除操作：');
-    if (confirmText !== 'DELETE') {
-        alert('操作已取消');
-        return;
-    }
-    
-    try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/interfaces/${interfaceId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            alert('接口删除成功！');
-            // 刷新接口管理界面
-            if (document.getElementById('interfaceManagerModal').classList.contains('show')) {
-                showInterfaceManager();
-            }
-            // 刷新主页面数据
-            if (typeof loadAllData === 'function') {
-                loadAllData();
-            }
-        } else {
-            alert('接口删除失败：' + (result.message || '未知错误'));
-        }
-    } catch (error) {
-        console.error('删除接口失败:', error);
-        alert('网络错误，请重试');
-    }
+	const confirmed = await apiHelper.confirm('⚠️ 危险操作：确定要删除此接口吗？\n\n删除后：\n- 接口配置将永久丢失\n- 关联的模块和用户将被删除\n- 此操作不可撤销', '删除接口');
+	if (!confirmed) {
+		return;
+	}
+	
+	// 二次确认
+	const confirmText = prompt('请输入 "DELETE" 确认删除操作：');
+	if (confirmText !== 'DELETE') {
+		alert('操作已取消');
+		return;
+	}
+	
+	try {
+		apiHelper.showLoading('删除接口中...');
+		await api.wireguard.deleteInterface(interfaceId);
+		
+		apiHelper.handleSuccess('接口删除成功！');
+		
+		// 刷新主页面数据
+		if (typeof loadAllData === 'function') {
+			loadAllData();
+		}
+		
+		apiHelper.hideLoading();
+	} catch (error) {
+		console.error('删除接口失败:', error);
+		apiHelper.hideLoading();
+		apiHelper.handleError(error, '删除接口失败');
+	}
 }
+
+// 删除模块
+async function deleteModule(moduleId, moduleName) {
+	// 显示详细的确认对话框
+	const confirmed = await apiHelper.confirm(
+		`⚠️ 危险操作：确定要删除模块 "${moduleName}" 吗？\n\n` +
+		`删除后：\n` +
+		`- 模块配置将永久丢失\n` +
+		`- 关联的用户VPN配置将被删除\n` +
+		`- 模块密钥将无法恢复\n` +
+		`- 此操作不可撤销\n\n` +
+		`请确认您真的要删除这个模块吗？`, 
+		'删除模块'
+	);
+	
+	if (!confirmed) {
+		return;
+	}
+	
+	// 二次确认 - 要求用户输入模块名称
+	const confirmText = prompt(`请输入模块名称 "${moduleName}" 来确认删除操作：`);
+	if (confirmText !== moduleName) {
+		alert('模块名称不匹配，操作已取消');
+		return;
+	}
+	
+	try {
+		apiHelper.showLoading('删除模块中...');
+		await api.modules.deleteModule(moduleId);
+		
+		apiHelper.handleSuccess(`模块 "${moduleName}" 删除成功！\n\n模块配置已从系统中移除，相关用户VPN配置已同步清理，密钥已销毁。`);
+		
+		// 刷新主页面数据
+		if (typeof loadAllData === 'function') {
+			loadAllData();
+		} else if (typeof renderInterfaceModuleGrid === 'function') {
+			renderInterfaceModuleGrid();
+		}
+		
+		apiHelper.hideLoading();
+	} catch (error) {
+		console.error('删除模块失败:', error);
+		apiHelper.hideLoading();
+		apiHelper.handleError(error, '删除模块失败');
+	}
+}
+
+// 删除用户VPN
+async function deleteUserVPN(userId, userName) {
+	// 显示详细的确认对话框
+	const confirmed = await apiHelper.confirm(
+		`⚠️ 危险操作：确定要删除用户 "${userName}" 吗？\n\n` +
+		`删除后：\n` +
+		`- 用户VPN配置将永久丢失\n` +
+		`- 用户密钥将无法恢复\n` +
+		`- 用户将无法连接VPN\n` +
+		`- 此操作不可撤销\n\n` +
+		`请确认您真的要删除这个用户吗？`, 
+		'删除用户'
+	);
+	
+	if (!confirmed) {
+		return;
+	}
+	
+	// 二次确认 - 要求用户输入用户名
+	const confirmText = prompt(`请输入用户名 "${userName}" 来确认删除操作：`);
+	if (confirmText !== userName) {
+		alert('用户名不匹配，操作已取消');
+		return;
+	}
+	
+	try {
+		apiHelper.showLoading('删除用户中...');
+		await api.userVPN.deleteUserVPN(userId);
+		
+		apiHelper.handleSuccess(`用户 "${userName}" 删除成功！\n\n用户VPN配置已从系统中移除，相关密钥已清理。`);
+		
+		// 刷新主页面数据
+		if (typeof loadAllData === 'function') {
+			loadAllData();
+		} else if (typeof renderInterfaceModuleGrid === 'function') {
+			renderInterfaceModuleGrid();
+		}
+		
+		apiHelper.hideLoading();
+	} catch (error) {
+		console.error('删除用户失败:', error);
+		apiHelper.hideLoading();
+		apiHelper.handleError(error, '删除用户失败');
+	}
+}
+
+
 
 // 查看接口配置
 async function showInterfaceConfig(interfaceId) {
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/interfaces/${interfaceId}/config`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('获取接口配置...');
+        const result = await api.wireguard.getInterfaceConfig(interfaceId);
+        const interfaceInfo = result.data.interface;
+        const configContent = result.data.config;
         
-        if (response.ok) {
-            const result = await response.json();
-            const interfaceInfo = result.data.interface;
-            const configContent = result.data.config;
+        // 显示配置内容模态框
+        const content = `
+            <div class="mb-3">
+                <h6 style="color: #f1f5f9;">
+                    <i class="fas fa-file-code me-2"></i>接口配置：${interfaceInfo.name}
+                </h6>
+                <p style="color: #94a3b8;">
+                    网络段：${interfaceInfo.network} | 端口：${interfaceInfo.listen_port} | 
+                    状态：<span class="badge bg-${interfaceInfo.status === 1 ? 'success' : 'secondary'}">${interfaceInfo.status === 1 ? '运行中' : '已停止'}</span>
+                </p>
+            </div>
             
-            // 显示配置内容模态框
-            const content = `
-                <div class="mb-3">
-                    <h6 style="color: #f1f5f9;">
-                        <i class="fas fa-file-code me-2"></i>接口配置：${interfaceInfo.name}
-                    </h6>
-                    <p style="color: #94a3b8;">
-                        网络段：${interfaceInfo.network} | 端口：${interfaceInfo.listen_port} | 
-                        状态：<span class="badge bg-${interfaceInfo.status === 1 ? 'success' : 'secondary'}">${interfaceInfo.status === 1 ? '运行中' : '已停止'}</span>
-                    </p>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label" style="color: #e2e8f0;">配置文件内容：</label>
-                    <textarea class="form-control" rows="20" readonly
-                              style="background: rgba(15, 23, 42, 0.8); color: #34d399; font-family: 'Courier New', monospace; font-size: 0.875rem;">${configContent}</textarea>
-                </div>
-                
-                <div class="alert alert-info" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary-color); color: var(--text-primary);">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>配置说明：</strong>
-                    <ul class="mb-0 mt-2">
-                        <li>此配置遵循您的配置文档标准</li>
-                        <li>已包含所有模块的Peer配置</li>
-                        <li>支持完整的内网穿透功能</li>
-                        <li>配置文件路径：/etc/wireguard/${interfaceInfo.name}.conf</li>
-                    </ul>
-                </div>
-                
-                <div class="mt-3">
-                    <button class="btn btn-primary" onclick="downloadInterfaceConfig(${interfaceId})">
-                        <i class="fas fa-download me-1"></i>下载配置文件
-                    </button>
-                </div>
-            `;
+            <div class="mb-3">
+                <label class="form-label" style="color: #e2e8f0;">配置文件内容：</label>
+                <textarea class="form-control" rows="20" readonly
+                          style="background: rgba(15, 23, 42, 0.8); color: #34d399; font-family: 'Courier New', monospace; font-size: 0.875rem;">${configContent}</textarea>
+            </div>
             
-            document.getElementById('userVPNContent').innerHTML = content;
-            const modalElement = document.getElementById('userVPNModal');
-            if (modalElement) {
-                ModalManager.show(modalElement);
-            }
-        } else {
-            alert('获取配置失败');
+            <div class="alert alert-info" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary-color); color: var(--text-primary);">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>配置说明：</strong>
+                <ul class="mb-0 mt-2">
+                    <li>此配置遵循您的配置文档标准</li>
+                    <li>已包含所有模块的Peer配置</li>
+                    <li>支持完整的内网穿透功能</li>
+                    <li>配置文件路径：/etc/wireguard/${interfaceInfo.name}.conf</li>
+                </ul>
+            </div>
+            
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="downloadInterfaceConfig(${interfaceId})">
+                    <i class="fas fa-download me-1"></i>下载配置文件
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('userVPNContent').innerHTML = content;
+        const modalElement = document.getElementById('userVPNModal');
+        if (modalElement) {
+            ModalManager.show(modalElement);
         }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('获取接口配置失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '获取接口配置失败');
     }
 }
 
 // 下载接口配置文件
 async function downloadInterfaceConfig(interfaceId) {
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch(`/api/v1/interfaces/${interfaceId}/config`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        apiHelper.showLoading('准备下载配置...');
+        const result = await api.wireguard.getInterfaceConfig(interfaceId);
+        const interfaceInfo = result.data.interface;
+        const configContent = result.data.config;
         
-        if (response.ok) {
-            const result = await response.json();
-            const interfaceInfo = result.data.interface;
-            const configContent = result.data.config;
-            
-            // 创建下载链接
-            const blob = new Blob([configContent], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${interfaceInfo.name}.conf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        } else {
-            alert('下载失败');
-        }
+        // 创建下载链接
+        const blob = new Blob([configContent], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${interfaceInfo.name}.conf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        apiHelper.hideLoading();
+        apiHelper.handleSuccess('配置文件下载成功！');
     } catch (error) {
         console.error('下载配置失败:', error);
-        alert('网络错误，请重试');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '下载配置文件失败');
     }
 }
 
@@ -733,37 +551,29 @@ function handleInterfacePresetClick(event) {
 // 自动检测网络接口
 async function detectNetworkInterface() {
     try {
-        const token = localStorage.getItem('access_token');
-        const response = await fetch('/api/v1/system/network-interfaces', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
+        apiHelper.showLoading('检测网络接口...');
+        const data = await api.wireguard.getNetworkInterfaces();
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data && data.data.length > 0) {
-                // 优先选择默认路由的接口
-                const defaultInterface = data.data.find(iface => iface.is_default) || data.data[0];
-                const input = document.getElementById('interfaceNetworkInterface');
-                if (input) {
-                    input.value = defaultInterface.name;
-                    updateInterfaceConfigPreview();
-                    
-                    // 显示检测结果
-                    alert(`已检测到网络接口：${defaultInterface.name}`);
-                }
-            } else {
-                alert('未检测到可用的网络接口，请手动输入');
+        if (data.success && data.data && data.data.length > 0) {
+            // 优先选择默认路由的接口
+            const defaultInterface = data.data.find(iface => iface.is_default) || data.data[0];
+            const input = document.getElementById('interfaceNetworkInterface');
+            if (input) {
+                input.value = defaultInterface.name;
+                updateInterfaceConfigPreview();
+                
+                // 显示检测结果
+                apiHelper.handleSuccess(`已检测到网络接口：${defaultInterface.name}`);
             }
         } else {
-            alert('检测网络接口失败，请手动输入');
+            alert('未检测到可用的网络接口，请手动输入');
         }
+        
+        apiHelper.hideLoading();
     } catch (error) {
         console.error('检测网络接口时出错:', error);
-        alert('检测网络接口失败，请手动输入');
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '检测网络接口失败，请手动输入');
     }
 }
 
@@ -792,7 +602,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 全局导出接口管理函数
-window.showInterfaceManager = showInterfaceManager;
+
 window.showCreateInterfaceModal = showCreateInterfaceModal;
 window.suggestInterfaceConfig = suggestInterfaceConfig;
 window.applyInterfaceTemplate = applyInterfaceTemplate;
@@ -801,6 +611,8 @@ window.submitCreateInterface = submitCreateInterface;
 window.startInterface = startInterface;
 window.stopInterface = stopInterface;
 window.deleteInterface = deleteInterface;
+window.deleteModule = deleteModule;
+window.deleteUserVPN = deleteUserVPN;
 window.showInterfaceConfig = showInterfaceConfig;
 window.downloadInterfaceConfig = downloadInterfaceConfig; 
 
@@ -817,18 +629,12 @@ async function renderInterfaceModuleGrid() {
     }
     
     try {
-        const token = localStorage.getItem('access_token');
+        apiHelper.showLoading('加载接口数据...');
         
         // 获取带状态的接口数据（包含模块信息）
-        const interfacesResponse = await fetch('/api/v1/system/wireguard-interfaces', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const result = await api.wireguard.getInterfaces();
+        const interfaces = result.data || [];
         
-        if (!interfacesResponse.ok) {
-            throw new Error('获取接口数据失败');
-        }
-        
-        const interfaces = (await interfacesResponse.json()).data || [];
         // 从接口数据中提取模块信息
         const modules = [];
         interfaces.forEach(iface => {
@@ -838,9 +644,11 @@ async function renderInterfaceModuleGrid() {
         });
         
         renderGridWithData(interfaces, modules);
+        apiHelper.hideLoading();
         
     } catch (error) {
         console.error('渲染接口-模块网格失败:', error);
+        apiHelper.hideLoading();
         
         // 如果API调用失败，尝试使用演示数据
         if (typeof generateDemoData === 'function') {
@@ -1005,6 +813,9 @@ function renderInterfaceModuleCard(iface, modules) {
                                 <button class="btn btn-xs btn-outline-info" onclick="downloadModuleConfig(${module.id})" title="下载模块配置" style="padding: 2px 6px; font-size: 10px; border-radius: 3px;">
                                     <i class="fas fa-download"></i>
                                 </button>
+                                <button class="btn btn-xs btn-outline-danger" onclick="deleteModule(${module.id}, '${module.name}')" title="删除模块" style="padding: 2px 6px; font-size: 10px; border-radius: 3px;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1024,7 +835,7 @@ function renderInterfaceModuleCard(iface, modules) {
 
                         <div class="module-detail-item">
                             <div class="module-detail-label">最后心跳</div>
-                            <div class="module-detail-value">${formatLastHeartbeat(module.last_heartbeat)}</div>
+                            <div class="module-detail-value">${formatLastHeartbeat(module.last_seen || module.latest_handshake)}</div>
                         </div>
                         <div class="module-detail-item">
                             <div class="module-detail-label">流量</div>
@@ -1046,7 +857,12 @@ function renderInterfaceModuleCard(iface, modules) {
                     <div class="user-stats">
                         ${module.users && module.users.length > 0 ? `
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
-                                ${module.users.map((user, index) => `
+                                ${module.users.map((user, index) => {
+                                    // 全部从users获取实时wg show数据（状态和心跳时间）
+                                    const isOnline = user.is_active; // 实时的wg show状态
+                                    const lastHeartbeat = user.last_seen || user.latest_handshake; // 实时的wg show心跳时间
+                                    
+                                    return `
                                     <div class="user-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(15, 23, 42, 0.6); border-radius: 6px; font-size: 11px; border: 1px solid rgba(30, 41, 59, 0.6); box-sizing: border-box;">
                                         <div class="user-info" style="display: flex; flex-direction: column; flex: 1; min-width: 0; margin-right: 8px;">
                                             <div class="user-name" style="color: #f1f5f9; font-weight: 500; margin-bottom: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -1054,10 +870,13 @@ function renderInterfaceModuleCard(iface, modules) {
                                             </div>
                                             <div class="user-details" style="display: flex; flex-direction: column; gap: 2px; color: #94a3b8; font-size: 10px;">
                                                 <span class="user-status">
-                                                    状态: <span style="color: ${user.is_active ? '#10b981' : '#6b7280'}; font-weight: 500;">${user.is_active ? '在线' : '离线'}</span>
+                                                    状态: <span style="color: ${isOnline ? '#10b981' : '#6b7280'}; font-weight: 500;">${isOnline ? '在线' : '离线'}</span>
                                                 </span>
                                                 <span class="user-ip">
                                                     IP: <span style="color: #34d399; font-family: monospace; font-weight: 500;">${user.ip_address || '未分配'}</span>
+                                                </span>
+                                                <span class="user-heartbeat">
+                                                    心跳: <span style="color: #fbbf24; font-weight: 500;">${formatLastHeartbeat(lastHeartbeat)}</span>
                                                 </span>
                                             </div>
                                         </div>
@@ -1065,15 +884,15 @@ function renderInterfaceModuleCard(iface, modules) {
                                             <button class="btn btn-xs btn-outline-info" onclick="downloadUserConfig(${user.id})" title="下载 ${user.username} 的配置" style="padding: 4px 8px; font-size: 9px; border-radius: 3px;">
                                                 <i class="fas fa-download"></i>
                                             </button>
+                                            <button class="btn btn-xs btn-outline-danger" onclick="deleteUserVPN(${user.id}, '${user.username}')" title="删除用户 ${user.username}" style="padding: 4px 8px; font-size: 9px; border-radius: 3px;">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </div>
                         ` : `
-                            <div class="user-section-title" style="display: flex; align-items: center; margin-bottom: 8px; color: #f1f5f9; font-weight: 600; font-size: 12px;">
-                                <i class="fas fa-users" style="margin-right: 6px; color: #60a5fa;"></i>
-                                模块用户 (0个)
-                            </div>
                             <div class="no-users" style="background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 16px; text-align: center; width: 100%; border: 1px solid rgba(30, 41, 59, 0.6);">
                                 <div style="color: #94a3b8; font-size: 11px; margin-bottom: 10px;">
                                     <i class="fas fa-user-plus" style="margin-right: 6px;"></i>
@@ -1136,9 +955,7 @@ function renderInterfaceModuleCard(iface, modules) {
                 <button class="card-action-btn" onclick="showInterfaceConfig(${iface.id})">
                     <i class="fas fa-cog"></i> 配置
                 </button>
-                <button class="card-action-btn" onclick="showInterfaceManager()">
-                    <i class="fas fa-tools"></i> 管理
-                </button>
+
                 ${(iface.is_active !== undefined ? iface.is_active : (iface.status === 1)) ? 
                     `<button class="card-action-btn danger" onclick="stopInterface(${iface.id})">
                         <i class="fas fa-stop"></i> 停止
@@ -1214,16 +1031,37 @@ function getModuleStatusIcon(status) {
 
 // 格式化最后心跳时间
 function formatLastHeartbeat(timestamp) {
-    if (!timestamp) return '从未';
+    if (!timestamp || timestamp === null) return '从未';
     
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now - date;
-    
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
-    return `${Math.floor(diff / 86400000)}天前`;
+    try {
+        const date = new Date(timestamp);
+        // 检查日期是否有效
+        if (isNaN(date.getTime())) return '无效时间';
+        
+        const now = new Date();
+        const diff = now - date;
+        
+        // 处理未来时间（可能的时区问题）
+        if (diff < 0) {
+            return '刚刚';
+        }
+        
+        if (diff < 60000) return '刚刚'; // 1分钟内
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`; // 1小时内
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`; // 1天内
+        if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`; // 1周内
+        
+        // 超过1周显示具体日期
+        return date.toLocaleDateString('zh-CN', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        console.warn('格式化心跳时间出错:', error, 'timestamp:', timestamp);
+        return '解析失败';
+    }
 }
 
 // 格式化流量
@@ -1272,3 +1110,23 @@ function bindCardEventListeners() {
 // 全局导出接口-模块网格函数
 window.renderInterfaceModuleGrid = renderInterfaceModuleGrid;
 window.refreshInterfaceModuleGrid = refreshInterfaceModuleGrid; 
+
+// 下载用户配置文件
+async function downloadUserConfig(userId) {
+    try {
+        apiHelper.showLoading('准备下载配置...');
+        
+        // 使用封装的API方法
+        await api.userVPN.downloadUserConfig(userId);
+        
+        apiHelper.hideLoading();
+        apiHelper.handleSuccess('用户配置文件下载成功！');
+    } catch (error) {
+        console.error('下载用户配置失败:', error);
+        apiHelper.hideLoading();
+        apiHelper.handleError(error, '下载用户配置文件失败');
+    }
+}
+
+// 全局导出downloadUserConfig方法
+window.downloadUserConfig = downloadUserConfig; 

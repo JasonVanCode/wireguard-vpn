@@ -73,5 +73,5 @@ type UserVPNConfig struct {
 	Description string     `json:"description"`
 	AllowedIPs  string     `json:"allowed_ips"`
 	ExpiresAt   *time.Time `json:"expires_at"`
-	MaxDevices  int        `json:"max_devices"`
+	MaxDevices  int        `json:"max_devices" binding:"min=1,max=10"`
 }

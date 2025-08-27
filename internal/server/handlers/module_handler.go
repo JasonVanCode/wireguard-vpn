@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"eitec-vpn/internal/server/models"
 	"eitec-vpn/internal/server/services"
+	"eitec-vpn/internal/shared/response"
 	"eitec-vpn/internal/shared/utils"
 
 	"github.com/gin-gonic/gin"
@@ -52,10 +52,7 @@ type UpdateModuleRequest struct {
 func (mh *ModuleHandler) CreateModule(c *gin.Context) {
 	var req CreateModuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数无效: " + err.Error(),
-		})
+		response.BadRequest(c, "请求参数无效: "+err.Error())
 		return
 	}
 
@@ -88,10 +85,7 @@ func (mh *ModuleHandler) CreateModule(c *gin.Context) {
 
 	// 验证配置参数
 	if req.PersistentKeepalive < 0 || req.PersistentKeepalive > 300 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "持久化保活时间必须在0-300秒之间",
-		})
+		response.BadRequest(c, "持久化保活时间必须在0-300秒之间")
 		return
 	}
 
@@ -112,18 +106,13 @@ func (mh *ModuleHandler) CreateModule(c *gin.Context) {
 
 	module, err := mh.moduleService.CreateModule(moduleData)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": err.Error(),
-		})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    201,
-		"message": "模块创建成功，WireGuard配置已自动更新",
-		"data":    module,
-		"note":    "如果接口正在运行，配置文件已自动重新生成并应用",
+	response.SuccessWithMessage(c, "模块创建成功，WireGuard配置已自动更新", gin.H{
+		"data": module,
+		"note": "如果接口正在运行，配置文件已自动重新生成并应用",
 	})
 }
 
@@ -132,27 +121,17 @@ func (mh *ModuleHandler) GetModule(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
 	module, err := mh.moduleService.GetModule(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": err.Error(),
-		})
+		response.NotFound(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    module,
-	})
+	response.Success(c, module)
 }
 
 // GetModules 获取模块列表
@@ -188,21 +167,11 @@ func (mh *ModuleHandler) GetModules(c *gin.Context) {
 
 	modules, total, err := mh.moduleService.GetModules(page, size, filters)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "查询模块列表失败: " + err.Error(),
-		})
+		response.InternalError(c, "查询模块列表失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    modules,
-		"total":   total,
-		"page":    page,
-		"size":    size,
-	})
+	response.Paged(c, modules, total, page, size)
 }
 
 // UpdateModule 更新模块
@@ -210,19 +179,13 @@ func (mh *ModuleHandler) UpdateModule(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
 	var req UpdateModuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数无效: " + err.Error(),
-		})
+		response.BadRequest(c, "请求参数无效: "+err.Error())
 		return
 	}
 
@@ -231,10 +194,7 @@ func (mh *ModuleHandler) UpdateModule(c *gin.Context) {
 	if req.Name != nil {
 		name := utils.TrimSpaces(utils.Sanitize(*req.Name))
 		if name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "模块名称不能为空",
-			})
+			response.BadRequest(c, "模块名称不能为空")
 			return
 		}
 		updates["name"] = name
@@ -242,10 +202,7 @@ func (mh *ModuleHandler) UpdateModule(c *gin.Context) {
 	if req.Location != nil {
 		location := utils.TrimSpaces(utils.Sanitize(*req.Location))
 		if location == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "模块位置不能为空",
-			})
+			response.BadRequest(c, "模块位置不能为空")
 			return
 		}
 		updates["location"] = location
@@ -255,35 +212,23 @@ func (mh *ModuleHandler) UpdateModule(c *gin.Context) {
 	}
 	if req.PersistentKA != nil {
 		if *req.PersistentKA < 0 || *req.PersistentKA > 300 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "持久化保活时间必须在0-300之间",
-			})
+			response.BadRequest(c, "持久化保活时间必须在0-300之间")
 			return
 		}
 		updates["persistent_ka"] = *req.PersistentKA
 	}
 
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "没有需要更新的字段",
-		})
+		response.BadRequest(c, "没有需要更新的字段")
 		return
 	}
 
 	if err := mh.moduleService.UpdateModule(uint(id), updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": err.Error(),
-		})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "模块更新成功",
-	})
+	response.SuccessWithMessage(c, "模块更新成功", nil)
 }
 
 // DeleteModule 删除模块
@@ -291,25 +236,17 @@ func (mh *ModuleHandler) DeleteModule(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
+	// 先删除模块相关的用户VPN配置，再删除模块本身
 	if err := mh.moduleService.DeleteModule(uint(id)); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": err.Error(),
-		})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "模块删除成功",
-	})
+	response.SuccessWithMessage(c, "模块删除成功，相关用户VPN配置已同步清理", nil)
 }
 
 // GenerateModuleConfig 生成模块配置
@@ -317,29 +254,20 @@ func (mh *ModuleHandler) GenerateModuleConfig(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
 	// 获取模块信息用于文件名
 	module, err := mh.moduleService.GetModule(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "模块不存在: " + err.Error(),
-		})
+		response.NotFound(c, "模块不存在: "+err.Error())
 		return
 	}
 
 	config, err := mh.moduleService.GenerateModuleConfig(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成配置失败: " + err.Error(),
-		})
+		response.InternalError(c, "生成配置失败: "+err.Error())
 		return
 	}
 
@@ -357,28 +285,18 @@ func (mh *ModuleHandler) GeneratePeerConfig(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
 	config, err := mh.moduleService.GeneratePeerConfig(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成配置失败: " + err.Error(),
-		})
+		response.InternalError(c, "生成配置失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data": map[string]string{
-			"config": config,
-		},
+	response.Success(c, map[string]string{
+		"config": config,
 	})
 }
 
@@ -387,61 +305,38 @@ func (mh *ModuleHandler) RegenerateKeys(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
 	module, err := mh.moduleService.RegenerateModuleKeys(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "重新生成密钥失败: " + err.Error(),
-		})
+		response.InternalError(c, "重新生成密钥失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "密钥重新生成成功",
-		"data":    module,
-	})
+	response.SuccessWithMessage(c, "密钥重新生成成功", module)
 }
 
 // GetModuleStats 获取模块统计信息
 func (mh *ModuleHandler) GetModuleStats(c *gin.Context) {
 	stats, err := mh.moduleService.GetModuleStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取统计信息失败: " + err.Error(),
-		})
+		response.InternalError(c, "获取统计信息失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    stats,
-	})
+	response.Success(c, stats)
 }
 
 // SyncModuleStatus 同步模块状态
 func (mh *ModuleHandler) SyncModuleStatus(c *gin.Context) {
 	if err := mh.moduleService.SyncModuleStatus(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "同步模块状态失败: " + err.Error(),
-		})
+		response.InternalError(c, "同步模块状态失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "模块状态同步成功",
-	})
+	response.SuccessWithMessage(c, "模块状态同步成功", nil)
 }
 
 // UpdateModuleStatusRequest 更新模块状态请求
@@ -454,19 +349,13 @@ func (mh *ModuleHandler) UpdateModuleStatus(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
+		response.BadRequest(c, "模块ID无效")
 		return
 	}
 
 	var req UpdateModuleStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数无效: " + err.Error(),
-		})
+		response.BadRequest(c, "请求参数无效: "+err.Error())
 		return
 	}
 
@@ -482,25 +371,16 @@ func (mh *ModuleHandler) UpdateModuleStatus(c *gin.Context) {
 	case "unconfigured":
 		status = models.ModuleStatusUnconfigured
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的状态值",
-		})
+		response.BadRequest(c, "无效的状态值")
 		return
 	}
 
 	if err := mh.moduleService.UpdateModuleStatus(uint(id), status); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": err.Error(),
-		})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "模块状态更新成功",
-	})
+	response.SuccessWithMessage(c, "模块状态更新成功", nil)
 }
 
 // BatchDeleteModules 批量删除模块
@@ -510,10 +390,7 @@ func (mh *ModuleHandler) BatchDeleteModules(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数无效: " + err.Error(),
-		})
+		response.BadRequest(c, "请求参数无效: "+err.Error())
 		return
 	}
 
@@ -529,8 +406,6 @@ func (mh *ModuleHandler) BatchDeleteModules(c *gin.Context) {
 	}
 
 	result := gin.H{
-		"code":          200,
-		"message":       fmt.Sprintf("批量删除完成，成功: %d, 失败: %d", successCount, len(errors)),
 		"success_count": successCount,
 		"error_count":   len(errors),
 	}
@@ -539,95 +414,5 @@ func (mh *ModuleHandler) BatchDeleteModules(c *gin.Context) {
 		result["errors"] = errors
 	}
 
-	c.JSON(http.StatusOK, result)
-}
-
-// GetRecentlyActiveModules 获取最近活跃的模块
-func (mh *ModuleHandler) GetRecentlyActiveModules(c *gin.Context) {
-	limitStr := c.DefaultQuery("limit", "10")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
-		limit = 10
-	}
-
-	modules, err := mh.moduleService.GetRecentlyActiveModules(limit)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取最近活跃模块失败: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    modules,
-	})
-}
-
-// UpdateModuleHeartbeat 更新模块心跳
-func (mh *ModuleHandler) UpdateModuleHeartbeat(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
-		return
-	}
-
-	// 更新模块最后握手时间
-	if err := mh.moduleService.UpdateModuleHandshake(uint(id), time.Now()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "更新心跳失败: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "心跳更新成功",
-	})
-}
-
-// UpdateModuleTraffic 更新模块流量
-func (mh *ModuleHandler) UpdateModuleTraffic(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "模块ID无效",
-		})
-		return
-	}
-
-	var req struct {
-		RxBytes uint64 `json:"rx_bytes"`
-		TxBytes uint64 `json:"tx_bytes"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数无效: " + err.Error(),
-		})
-		return
-	}
-
-	// 更新模块流量统计
-	if err := mh.moduleService.UpdateModuleTraffic(uint(id), req.RxBytes, req.TxBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "更新流量失败: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "流量更新成功",
-	})
+	response.SuccessWithMessage(c, fmt.Sprintf("批量删除完成，成功: %d, 失败: %d", successCount, len(errors)), result)
 }

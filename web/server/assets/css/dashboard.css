@@ -983,6 +983,76 @@ body {
     overflow-x: hidden;
 }
 
+/* 空状态样式 - 当没有接口时居中显示 */
+.interface-module-grid:empty,
+.interface-module-grid .empty-interface {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    text-align: center;
+    padding: 2rem;
+}
+
+.empty-interface {
+    grid-column: 1 / -1; /* 跨越所有列 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    text-align: center;
+    padding: 2rem;
+    background: var(--card-bg);
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    margin: 1rem;
+}
+
+.empty-interface i {
+    font-size: 4rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    opacity: 0.6;
+}
+
+.empty-interface h4 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.empty-interface p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 400px;
+    line-height: 1.6;
+}
+
+.empty-interface .card-action-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    min-width: 160px;
+    transition: all 0.3s ease;
+}
+
+.empty-interface .card-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+}
+
+/* 空状态时的网格布局调整 */
+.interface-module-grid:has(.empty-interface) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    grid-template-columns: 1fr;
+}
+
 /* 接口-模块网格滚动条样式 */
 .interface-module-grid::-webkit-scrollbar {
     width: 8px;
@@ -1407,6 +1477,20 @@ body {
     .interface-module-card {
         padding: 0.8rem;
     }
+    
+    /* 空状态中等屏幕优化 */
+    .empty-interface {
+        min-height: 350px;
+        padding: 1.5rem;
+    }
+    
+    .empty-interface i {
+        font-size: 3.5rem;
+    }
+    
+    .empty-interface h4 {
+        font-size: 1.4rem;
+    }
 }
 
 /* 小屏幕优化 */
@@ -1492,6 +1576,35 @@ body {
     
     .interface-module-grid::-webkit-scrollbar-thumb:hover {
         background: rgba(59, 130, 246, 0.9);
+    }
+    
+    /* 空状态小屏幕优化 */
+    .empty-interface {
+        min-height: 300px;
+        padding: 1rem;
+        margin: 0.5rem;
+    }
+    
+    .empty-interface i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .empty-interface h4 {
+        font-size: 1.3rem;
+        margin-bottom: 0.8rem;
+    }
+    
+    .empty-interface p {
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+        max-width: 300px;
+    }
+    
+    .empty-interface .card-action-btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+        min-width: 140px;
     }
 }
 

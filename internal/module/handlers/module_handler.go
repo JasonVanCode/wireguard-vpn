@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ModuleHandler 模块处理器
+// ModuleHandler 模块处理器 - 简化版本，只保留必要的基础功能
 type ModuleHandler struct {
 	moduleService *services.ModuleService
 	statusService *services.StatusService
@@ -21,7 +21,7 @@ func NewModuleHandler(moduleService *services.ModuleService, statusService *serv
 	}
 }
 
-// GetStatus 获取模块状态
+// GetStatus 获取模块基础状态
 func (h *ModuleHandler) GetStatus(c *gin.Context) {
 	wgStatus, err := h.statusService.GetWireGuardStatus()
 	if err != nil {
@@ -29,60 +29,16 @@ func (h *ModuleHandler) GetStatus(c *gin.Context) {
 		return
 	}
 
-	systemStatus, err := h.statusService.GetSystemStatus()
-	if err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{
-		"wireguard": wgStatus,
-		"system":    systemStatus,
-	})
-}
-
-// UpdateStatus 更新模块状态
-func (h *ModuleHandler) UpdateStatus(c *gin.Context) {
-	// 状态服务通常不需要手动更新，这里返回成功
-	response.SuccessWithMessage(c, "Status updated", nil)
-}
-
-// GetConfig 获取配置
-func (h *ModuleHandler) GetConfig(c *gin.Context) {
-	config, err := h.moduleService.GetWireGuardConfig()
-	if err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
+	// 获取模块配置信息
 	moduleInfo := h.moduleService.GetModuleInfo()
 
 	response.Success(c, gin.H{
-		"config": config,
-		"module": moduleInfo,
+		"wireguard": wgStatus,
+		"module":    moduleInfo,
 	})
 }
 
-// UpdateConfig 更新配置
-func (h *ModuleHandler) UpdateConfig(c *gin.Context) {
-	var req struct {
-		Config string `json:"config" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	if err := h.moduleService.UpdateWireGuardConfig(req.Config); err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
-	response.SuccessWithMessage(c, "Config updated", nil)
-}
-
-// GetStats 获取流量统计
+// GetStats 获取基础流量统计
 func (h *ModuleHandler) GetStats(c *gin.Context) {
 	trafficStats, err := h.statusService.GetTrafficStats()
 	if err != nil {
@@ -93,7 +49,7 @@ func (h *ModuleHandler) GetStats(c *gin.Context) {
 	response.Success(c, trafficStats)
 }
 
-// ConfigureModule 配置模块
+// ConfigureModule 配置模块 - 用于初始配置
 func (h *ModuleHandler) ConfigureModule(c *gin.Context) {
 	var req services.SetupInfo
 	if err := c.ShouldBindJSON(&req); err != nil {

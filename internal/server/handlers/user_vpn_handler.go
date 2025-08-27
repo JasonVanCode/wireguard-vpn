@@ -7,6 +7,7 @@ import (
 
 	"eitec-vpn/internal/server/models"
 	"eitec-vpn/internal/server/services"
+	"eitec-vpn/internal/shared/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,20 +28,26 @@ func NewUserVPNHandler() *UserVPNHandler {
 func (h *UserVPNHandler) CreateUserVPN(c *gin.Context) {
 	var config models.UserVPNConfig
 	if err := c.ShouldBindJSON(&config); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数", "message": err.Error()})
+		// 提供更详细的参数验证错误信息
+		response.BadRequest(c, "参数验证失败: "+err.Error())
 		return
+	}
+
+	// 设置默认值
+	if config.MaxDevices <= 0 {
+		config.MaxDevices = 1
+	}
+	if config.AllowedIPs == "" {
+		config.AllowedIPs = "0.0.0.0/0"
 	}
 
 	userVPN, err := h.userVPNService.CreateUserVPN(&config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户VPN失败", "message": err.Error()})
+		response.InternalError(c, "创建用户VPN失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "用户VPN创建成功",
-		"data":    userVPN,
-	})
+	response.SuccessWithMessage(c, "用户VPN创建成功", userVPN)
 }
 
 // GetUserVPNsByModule 获取模块的用户VPN列表
@@ -48,7 +55,7 @@ func (h *UserVPNHandler) GetUserVPNsByModule(c *gin.Context) {
 	moduleIDStr := c.Param("id") // 从 moduleId 改为 id
 	moduleID, err := strconv.ParseUint(moduleIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的模块ID"})
+		response.BadRequest(c, "无效的模块ID")
 		return
 	}
 
@@ -64,19 +71,11 @@ func (h *UserVPNHandler) GetUserVPNsByModule(c *gin.Context) {
 
 	userVPNs, total, err := h.userVPNService.GetUserVPNsByModule(uint(moduleID), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户VPN列表失败", "message": err.Error()})
+		response.InternalError(c, "获取用户VPN列表失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data": userVPNs,
-		"pagination": gin.H{
-			"page":        page,
-			"page_size":   pageSize,
-			"total":       total,
-			"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
-		},
-	})
+	response.Paged(c, userVPNs, total, page, pageSize)
 }
 
 // GetUserVPN 获取单个用户VPN信息
@@ -84,17 +83,17 @@ func (h *UserVPNHandler) GetUserVPN(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户VPN ID"})
+		response.BadRequest(c, "无效的用户VPN ID")
 		return
 	}
 
 	userVPN, err := h.userVPNService.GetUserVPN(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户VPN不存在", "message": err.Error()})
+		response.NotFound(c, "用户VPN不存在: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": userVPN})
+	response.Success(c, userVPN)
 }
 
 // UpdateUserVPN 更新用户VPN信息
@@ -102,22 +101,22 @@ func (h *UserVPNHandler) UpdateUserVPN(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户VPN ID"})
+		response.BadRequest(c, "无效的用户VPN ID")
 		return
 	}
 
 	var updates map[string]interface{}
 	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数", "message": err.Error()})
+		response.BadRequest(c, "无效的请求参数: "+err.Error())
 		return
 	}
 
 	if err := h.userVPNService.UpdateUserVPN(uint(id), updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户VPN失败", "message": err.Error()})
+		response.InternalError(c, "更新用户VPN失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "用户VPN更新成功"})
+	response.SuccessWithMessage(c, "用户VPN更新成功", nil)
 }
 
 // DeleteUserVPN 删除用户VPN
@@ -125,16 +124,16 @@ func (h *UserVPNHandler) DeleteUserVPN(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户VPN ID"})
+		response.BadRequest(c, "无效的用户VPN ID")
 		return
 	}
 
 	if err := h.userVPNService.DeleteUserVPN(uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除用户VPN失败", "message": err.Error()})
+		response.InternalError(c, "删除用户VPN失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "用户VPN删除成功"})
+	response.SuccessWithMessage(c, "用户VPN删除成功", nil)
 }
 
 // GenerateUserVPNConfig 生成用户VPN配置文件
@@ -142,20 +141,20 @@ func (h *UserVPNHandler) GenerateUserVPNConfig(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户VPN ID"})
+		response.BadRequest(c, "无效的用户VPN ID")
 		return
 	}
 
 	config, err := h.userVPNService.GenerateUserVPNConfig(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成配置文件失败", "message": err.Error()})
+		response.InternalError(c, "生成配置文件失败: "+err.Error())
 		return
 	}
 
 	// 获取用户信息用于文件名
 	userVPN, err := h.userVPNService.GetUserVPN(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户信息失败", "message": err.Error()})
+		response.InternalError(c, "获取用户信息失败: "+err.Error())
 		return
 	}
 
@@ -173,15 +172,15 @@ func (h *UserVPNHandler) GetUserVPNStats(c *gin.Context) {
 	moduleIDStr := c.Param("id") // 从 moduleId 改为 id
 	moduleID, err := strconv.ParseUint(moduleIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的模块ID"})
+		response.BadRequest(c, "无效的模块ID")
 		return
 	}
 
 	stats, err := h.userVPNService.GetUserVPNStats(uint(moduleID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取统计信息失败", "message": err.Error()})
+		response.InternalError(c, "获取统计信息失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": stats})
+	response.Success(c, stats)
 }

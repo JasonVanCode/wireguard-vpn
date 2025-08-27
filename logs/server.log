@@ -1,0 +1,29 @@
+2025/08/18 10:40:50 启动 EITEC VPN Server v2.0.0
+2025/08/18 10:40:50 数据库路径: /Users/jason/Eitec/eitec-vpn/data/eitec-vpn.db
+2025/08/18 10:40:50 数据库初始化成功
+Static path: ../web/server/static
+Assets path: ../web/server/assets
+Templates path: ../web/server/templates
+Found template files: [../web/server/templates/404.html ../web/server/templates/index.html ../web/server/templates/login.html]
+2025/08/18 10:40:50 运行模式: Full Stack
+2025/08/18 10:40:50 后台任务已启动
+2025/08/18 10:40:50 HTTP服务器启动在 :8070
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET / HTTP/1.1 200 1.303041ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /static/css/all.min.css HTTP/1.1 304 115.958µs "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /static/js/bootstrap.bundle.min.js HTTP/1.1 304 1.303542ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/js/api.js HTTP/1.1 200 6.842792ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/js/shared-utils.js HTTP/1.1 200 4.310333ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/css/dashboard.css HTTP/1.1 200 5.136166ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/js/module-management.js HTTP/1.1 200 4.454333ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /static/css/bootstrap.min.css HTTP/1.1 200 8.50225ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/js/interface-management.js HTTP/1.1 200 4.353333ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/js/dashboard-core.js HTTP/1.1 200 431.25µs "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /assets/js/user-management.js HTTP/1.1 200 545.125µs "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /static/webfonts/fa-solid-900.woff2 HTTP/1.1 200 1.278708ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /api/v1/system/wireguard-interfaces HTTP/1.1 200 19.895208ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:35 CST] "GET /favicon.ico HTTP/1.1 404 441.834µs "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:36 CST] "GET /api/v1/dashboard/stats HTTP/1.1 200 1.021116667s "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+::1 - [Mon, 18 Aug 2025 10:41:36 CST] "GET /api/v1/system/wireguard-interfaces HTTP/1.1 200 12.117667ms "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "
+2025/08/18 10:41:42 正在关闭服务器...
+2025/08/18 10:41:42 数据库连接已关闭
+2025/08/18 10:41:42 服务器已关闭
